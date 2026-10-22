@@ -15,7 +15,6 @@ from security.auth_security import (
 
 def test_password_is_hashed():
     stored = hash_password("DemoPassword123!")
-
     assert "password_hash" in stored
     assert "salt" in stored
     assert stored["password_hash"] != "DemoPassword123!"
@@ -23,20 +22,17 @@ def test_password_is_hashed():
 
 def test_correct_password_is_verified():
     stored = hash_password("DemoPassword123!")
-
     assert verify_password("DemoPassword123!", stored) is True
 
 
 def test_incorrect_password_is_rejected():
     stored = hash_password("DemoPassword123!")
-
     assert verify_password("WrongPassword!", stored) is False
 
 
 def test_password_hash_uses_a_random_salt():
     first = hash_password("DemoPassword123!")
     second = hash_password("DemoPassword123!")
-
     assert first["salt"] != second["salt"]
     assert first["password_hash"] != second["password_hash"]
 
@@ -46,45 +42,58 @@ def test_empty_password_is_rejected():
         hash_password("")
 
 
+def test_password_hash_contains_expected_iterations():
+    stored = hash_password("DemoPassword123!")
+    assert stored["iterations"] == 600_000
+
+
+def test_password_hash_uses_at_least_16_byte_salt():
+    stored = hash_password("DemoPassword123!")
+    salt = bytes.fromhex(stored["salt"])
+    assert len(salt) >= 16
+
+
+def test_password_verification_rejects_malformed_stored_data():
+    assert verify_password("DemoPassword123!", {}) is False
+
+
+def test_password_verification_rejects_non_string_password():
+    stored = hash_password("DemoPassword123!")
+    assert verify_password(None, stored) is False
+
+
 # ============================================================
 # OTP TESTS
 # ============================================================
 
 def test_correct_otp_is_accepted():
     challenge = create_otp(ttl_seconds=120, now=1000)
-
     assert verify_otp(challenge, challenge.code, now=1050) is True
 
 
 def test_otp_cannot_be_reused():
     challenge = create_otp(ttl_seconds=120, now=1000)
-
     assert verify_otp(challenge, challenge.code, now=1050) is True
     assert verify_otp(challenge, challenge.code, now=1051) is False
 
 
 def test_expired_otp_is_rejected():
     challenge = create_otp(ttl_seconds=30, now=1000)
-
     assert verify_otp(challenge, challenge.code, now=1030) is False
 
 
 def test_incorrect_otp_is_rejected():
     challenge = create_otp(ttl_seconds=120, now=1000)
-
     wrong_code = "000000"
     if wrong_code == challenge.code:
         wrong_code = "000001"
-
     assert verify_otp(challenge, wrong_code, now=1010) is False
 
 
 def test_otp_attempt_limit_is_enforced():
     challenge = create_otp(ttl_seconds=120, now=1000)
-
     for _ in range(challenge.max_attempts):
         verify_otp(challenge, "incorrect", now=1010)
-
     assert verify_otp(challenge, challenge.code, now=1011) is False
 
 
@@ -93,49 +102,57 @@ def test_non_positive_otp_lifetime_is_rejected():
         create_otp(ttl_seconds=0)
 
 
+def test_otp_has_six_digit_code():
+    challenge = create_otp(now=1000)
+    assert len(challenge.code) == 6
+    assert challenge.code.isdigit()
+
+
+def test_otp_wrong_attempts_are_counted():
+    challenge = create_otp(ttl_seconds=120, now=1000)
+    verify_otp(challenge, "incorrect", now=1010)
+    assert challenge.failed_attempts == 1
+
+
+def test_otp_negative_lifetime_is_rejected():
+    with pytest.raises(ValueError):
+        create_otp(ttl_seconds=-1)
+
+
 # ============================================================
 # RATE LIMITER TESTS
 # ============================================================
 
 def test_rate_limiter_allows_initial_attempts():
     limiter = LoginRateLimiter(max_attempts=3, window_seconds=60)
-
     assert limiter.is_allowed("demo-user", now=1000) is True
 
 
 def test_rate_limiter_blocks_after_maximum_failures():
     limiter = LoginRateLimiter(max_attempts=3, window_seconds=60)
-
     for timestamp in (1000, 1001, 1002):
         limiter.record_failure("demo-user", now=timestamp)
-
     assert limiter.is_allowed("demo-user", now=1003) is False
 
 
 def test_rate_limiter_recovers_after_window():
     limiter = LoginRateLimiter(max_attempts=2, window_seconds=60)
-
     limiter.record_failure("demo-user", now=1000)
     limiter.record_failure("demo-user", now=1001)
-
     assert limiter.is_allowed("demo-user", now=1062) is True
 
 
 def test_success_clears_failed_attempt_history():
     limiter = LoginRateLimiter(max_attempts=2, window_seconds=60)
-
     limiter.record_failure("demo-user", now=1000)
     limiter.record_failure("demo-user", now=1001)
     limiter.record_success("demo-user")
-
     assert limiter.is_allowed("demo-user", now=1002) is True
 
 
 def test_rate_limit_is_separate_for_each_account():
     limiter = LoginRateLimiter(max_attempts=1, window_seconds=60)
-
     limiter.record_failure("user-a", now=1000)
-
     assert limiter.is_allowed("user-a", now=1001) is False
     assert limiter.is_allowed("user-b", now=1001) is True
 
@@ -143,3 +160,27 @@ def test_rate_limit_is_separate_for_each_account():
 def test_invalid_rate_limiter_configuration_is_rejected():
     with pytest.raises(ValueError):
         LoginRateLimiter(max_attempts=0)
+
+
+def test_rate_limiter_rejects_empty_account_key():
+    limiter = LoginRateLimiter()
+    with pytest.raises(ValueError):
+        limiter.is_allowed("", now=1000)
+
+
+def test_rate_limiter_rejects_empty_account_key_when_recording_failure():
+    limiter = LoginRateLimiter()
+    with pytest.raises(ValueError):
+        limiter.record_failure("", now=1000)
+
+
+def test_rate_limiter_allows_attempt_after_old_failures_expire():
+    limiter = LoginRateLimiter(max_attempts=2, window_seconds=60)
+    limiter.record_failure("demo-user", now=1000)
+    limiter.record_failure("demo-user", now=1001)
+    assert limiter.is_allowed("demo-user", now=1061) is True
+
+
+def test_rate_limiter_rejects_non_positive_window():
+    with pytest.raises(ValueError):
+        LoginRateLimiter(window_seconds=0)

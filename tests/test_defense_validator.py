@@ -44,3 +44,40 @@ def test_each_validation_contains_individual_checks():
         assert result["status"] in {"PASS", "FAIL"}
         assert isinstance(result["checks"], dict)
         assert result["details"]
+
+
+def test_validation_report_contains_utc_timestamp():
+    report = run_all_validations()
+
+    assert report["timestamp_utc"]
+    assert report["timestamp_utc"].endswith("+00:00")
+
+
+def test_validation_results_have_unique_names():
+    report = run_all_validations()
+
+    names = [result["test"] for result in report["results"]]
+
+    assert len(names) == len(set(names))
+
+
+def test_summary_counts_match_validation_results():
+    report = run_all_validations()
+    results = report["results"]
+
+    passed = sum(result["status"] == "PASS" for result in results)
+    failed = sum(result["status"] == "FAIL" for result in results)
+
+    assert report["summary"]["total"] == len(results)
+    assert report["summary"]["passed"] == passed
+    assert report["summary"]["failed"] == failed
+
+
+def test_overall_status_matches_failed_count():
+    report = run_all_validations()
+
+    expected_status = (
+        "PASS" if report["summary"]["failed"] == 0 else "FAIL"
+    )
+
+    assert report["summary"]["overall_status"] == expected_status
