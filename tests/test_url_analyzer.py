@@ -1,4 +1,3 @@
-
 """
 CyberRakshak: URL Analyzer Tests
 
@@ -165,3 +164,41 @@ def test_suspicious_brand_subdomain_is_flagged():
         for indicator in result["indicators"]
     )
 
+
+def test_lookalike_domain_has_expected_score():
+    result = analyze_url("https://paypa1.com")
+
+    assert result["valid"] is True
+    assert result["risk_score"] == 20
+    assert any(
+        "character-substitution" in indicator
+        for indicator in result["indicators"]
+    )
+
+
+def test_brand_subdomain_has_expected_score():
+    result = analyze_url("https://paypal.example.com")
+
+    assert result["valid"] is True
+    assert result["risk_score"] == 15
+    assert any(
+        "appears in a subdomain" in indicator
+        for indicator in result["indicators"]
+    )
+
+
+def test_combined_warnings_increase_risk_score():
+    ordinary = analyze_url("https://example.com")
+    suspicious = analyze_url("http://paypa1.com/login")
+
+    assert suspicious["valid"] is True
+    assert suspicious["risk_score"] > ordinary["risk_score"]
+    assert len(suspicious["indicators"]) >= 3
+
+
+def test_high_risk_classification_uses_configured_threshold():
+    result = analyze_url("http://192.0.2.1/login")
+
+    # This input currently scores 40, so it should not be classified High.
+    assert result["risk_score"] == 40
+    assert result["risk_level"] == "Medium"

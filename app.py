@@ -1,44 +1,21 @@
-
 """
-CyberRakshak
-Intelligent Cyber Threat Detection & Defense Validation Platform
-
-Tagline:
-Detect the Threat. Understand the Attack. Strengthen the Defense.
-
-Educational cybersecurity platform built with Streamlit.
+CyberRakshak — Cyber Fraud Detection, Phishing Investigation and
+Defense Validation Platform.
+Tagline: Detect the Threat. Understand the Attack. Protect the User.
 """
 
 import json
-
-import pandas as pd
-import plotly.express as px
 import streamlit as st
+import plotly.graph_objects as go
 
 from engine.url_analyzer import analyze_url
 from engine.threat_intelligence import check_threat_intelligence
-
 from security.auth_security import (
-    LoginRateLimiter,
-    create_otp,
-    hash_password,
-    verify_otp,
-    verify_password,
+    LoginRateLimiter, create_otp, hash_password, verify_otp, verify_password
 )
-
 from security.defense_validator import run_all_validations
-
-from simulation.phishing_simulator import (
-    SCENARIOS,
-    run_simulation,
-)
-
+from simulation.phishing_simulator import SCENARIOS, run_simulation
 from reports.report_generator import generate_report
-
-
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
 
 st.set_page_config(
     page_title="CyberRakshak | Cybersecurity Platform",
@@ -47,1295 +24,548 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ---------- Professional dark cybersecurity design ----------
+st.markdown("""
+<style>
+:root {--bg:#070b14;--panel:#0c111d;--border:#263142;--text:#e8edf6;
+--muted:#8995a8;--teal:#12d6b0;--red:#ff4058;--amber:#f5b82e;--green:#19d17c;}
+.stApp,[data-testid="stAppViewContainer"]{background:#070b14;color:#e8edf6}
+[data-testid="stHeader"]{background:rgba(7,11,20,.96);border-bottom:1px solid #263142}
+[data-testid="stSidebar"]{background:#0d1422;border-right:1px solid #263142}
+[data-testid="stSidebar"] *{color:#c8d1df}
+.brand{font-size:1.4rem;font-weight:800;letter-spacing:-.5px;color:#f4f7fb}
+.brand span{color:#12d6b0}
+.eyebrow{color:#12d6b0;text-transform:uppercase;letter-spacing:1.5px;font-size:.74rem;font-weight:800}
+.hero{background:linear-gradient(125deg,#101b2b,#0c1421 55%,#102a2b);border:1px solid #263849;border-radius:18px;padding:1.7rem;margin:.2rem 0 1.2rem}
+.hero h1{font-size:2.6rem;line-height:1.1;letter-spacing:-1px;color:#f7fafc;margin:.4rem 0}
+.hero p{color:#aebbd0;max-width:760px}
+.panel{background:#0c111d;border:1px solid #263142;border-radius:14px;padding:1rem 1.1rem;margin-bottom:.8rem}
+.panel-title{font-weight:750;color:#e8edf6;margin-bottom:.25rem}
+.muted{color:#8995a8;font-size:.86rem}
+.alert-danger{background:linear-gradient(100deg,#2a0b16,#150d18);border:1px solid #812438;border-radius:14px;padding:1rem 1.2rem;margin:.7rem 0 1rem}
+.alert-danger h3{color:#ff6879;font-size:1.12rem;margin:0 0 .4rem}
+.alert-danger p{color:#e5cbd1;margin:0}
+.metric-card{background:#0c111d;border:1px solid #273244;border-radius:13px;padding:1rem;min-height:95px}
+.metric-label{color:#8793a6;font-size:.8rem;margin-bottom:.4rem}
+.metric-value{color:#f2f6fc;font-size:1.3rem;font-weight:800;overflow-wrap:anywhere}
+.metric-sub{color:#8492a7;font-size:.75rem;margin-top:.25rem}
+div[data-testid="stMetric"]{background:#0c111d;border:1px solid #273244;padding:.8rem 1rem;border-radius:12px}
+div.stButton>button,div.stDownloadButton>button{border-radius:9px;border:1px solid #334155;font-weight:700;min-height:2.5rem}
+div.stButton>button[kind="primary"]{background:#12d6b0;color:#04120f;border-color:#12d6b0}
+div.stTabs button[aria-selected="true"]{color:#12d6b0;border-bottom-color:#12d6b0}
+input,textarea,[data-baseweb="select"]>div{background:#0d1420!important;border-color:#2b3749!important}
+.footer-note{color:#718096;font-size:.77rem}
+</style>
+""", unsafe_allow_html=True)
 
-# ============================================================
-# CUSTOM STYLING
-# ============================================================
-
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background-color: #0b1120;
-        color: #e5e7eb;
-    }
-
-    [data-testid="stSidebar"] {
-        background-color: #111827;
-    }
-
-    .hero {
-        padding: 1.5rem;
-        border-radius: 16px;
-        background: linear-gradient(120deg, #111827, #172554);
-        border: 1px solid #334155;
-        margin-bottom: 1.2rem;
-    }
-
-    .hero h1 {
-        margin-bottom: 0.3rem;
-        color: #f8fafc;
-    }
-
-    .hero p {
-        color: #cbd5e1;
-    }
-
-    .section-note {
-        color: #94a3b8;
-        font-size: 0.9rem;
-    }
-
-    div[data-testid="stMetric"] {
-        background: #111827;
-        border: 1px solid #334155;
-        padding: 1rem;
-        border-radius: 12px;
-    }
-
-    div.stButton > button {
-        border-radius: 8px;
-        font-weight: 600;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-# ============================================================
-# SESSION STATE
-# ============================================================
-
-SESSION_DEFAULTS = {
-    "last_url_result": None,
-    "last_simulation_result": None,
-    "last_defense_result": None,
-    "last_report": None,
-    "demo_hash": None,
-    "demo_otp": None,
+# ---------- Session state ----------
+DEFAULTS = {
+    "last_url_result": None, "last_url_input": "",
+    "last_simulation_result": None, "last_defense_result": None,
+    "last_report": None, "demo_hash": None, "demo_otp": None,
     "demo_limiter": None,
 }
-
-for key, default_value in SESSION_DEFAULTS.items():
+for key, value in DEFAULTS.items():
     if key not in st.session_state:
-        st.session_state[key] = default_value
+        st.session_state[key] = value
 
 
-# ============================================================
-# SIDEBAR NAVIGATION
-# ============================================================
-
-st.sidebar.markdown("# 🛡️ CyberRakshak")
-
-st.sidebar.caption(
-    "Cyber Threat Detection & Defense Validation"
-)
-
-page = st.sidebar.radio(
-    "NAVIGATION",
-    [
-        "🏠 Home",
-        "🔍 URL Investigation",
-        "🌐 Threat Intelligence",
-        "🎭 Simulation Lab",
-        "🔐 Authentication Lab",
-        "🛡️ Defense Validation",
-        "📄 Reports",
-    ],
-)
-
-st.sidebar.divider()
-
-st.sidebar.markdown("### Project Status")
-st.sidebar.success("Backend modules loaded")
-
-st.sidebar.caption(
-    "Educational security platform. Risk scores are based on "
-    "heuristics and do not prove that a website is malicious or safe."
-)
+# ---------- Shared UI helpers ----------
+def metric_card(label, value, sub=""):
+    st.markdown(
+        f'<div class="metric-card"><div class="metric-label">{label}</div>'
+        f'<div class="metric-value">{value}</div><div class="metric-sub">{sub}</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
-# ============================================================
-# REUSABLE URL RESULT DISPLAY
-# ============================================================
+def risk_color(level):
+    return {"high": "#ff4058", "medium": "#f5b82e"}.get(str(level).lower(), "#19d17c")
 
-def show_url_result(result: dict) -> None:
-    """Display URL analysis results and suspicious indicators."""
 
+def show_risk_gauge(score, level):
+    try:
+        score = max(0, min(100, float(score)))
+    except (TypeError, ValueError):
+        score = 0
+    color = risk_color(level)
+    fig = go.Figure(go.Pie(
+        values=[score, 100-score], hole=.78, sort=False,
+        direction="clockwise", rotation=270,
+        marker=dict(colors=[color, "#202a39"]),
+        textinfo="none", hoverinfo="skip", showlegend=False,
+    ))
+    fig.update_layout(
+        height=205, margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        annotations=[dict(
+            text=f"<b>{score:.0f}</b><br><span style='font-size:12px;color:#8793a6'>/ 100</span>",
+            x=.5, y=.5, font=dict(size=30, color="#f2f6fc"), showarrow=False,
+        )],
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.markdown(
+        f"<div style='text-align:center;margin-top:-1rem;color:{color};font-weight:800'>{str(level).upper()} RISK</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def show_url_result(result):
+    """Show only facts returned by the local URL analyzer."""
     if not isinstance(result, dict):
         st.error("The URL analyzer returned an unexpected result.")
+        st.write(result)
         return
-
     if not result.get("valid", False):
-        st.error("The URL could not be analyzed.")
-
-        for indicator in result.get("indicators", []):
-            st.write(f"• {indicator}")
-
+        st.markdown(
+            '<div class="alert-danger"><h3>URL Could Not Be Analyzed</h3>'
+            '<p>Check the URL format and try again.</p></div>',
+            unsafe_allow_html=True,
+        )
+        for item in result.get("indicators", []):
+            st.write("• " + str(item))
         return
 
     score = result.get("risk_score", 0)
+    level = result.get("risk_level", "Unknown")
     hostname = result.get("hostname", "Unknown")
-    risk_level = result.get("risk_level", "Unknown")
-    indicators = result.get("indicators", [])
-
-    # --------------------------------------------------------
-    # MAIN METRICS
-    # --------------------------------------------------------
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Risk Score",
-        f"{score}/100",
-    )
-
-    col2.metric(
-        "Risk Level",
-        risk_level,
-    )
-
-    col3.metric(
-        "Hostname",
-        hostname,
-    )
-
-    st.caption(
-        "The risk score is calculated using local heuristic rules. "
-        "It is not a probability of fraud and does not prove that "
-        "a website is malicious or safe."
-    )
-
-    # --------------------------------------------------------
-    # RISK LEVEL MESSAGE
-    # --------------------------------------------------------
-
-    if risk_level == "High":
-        st.error(
-            "High heuristic risk: avoid interacting with this URL "
-            "until it has been investigated further."
-        )
-
-    elif risk_level == "Medium":
-        st.warning(
-            "Medium heuristic risk: inspect the URL carefully "
-            "before interacting with it."
-        )
-
-    else:
-        st.info(
-            "Low heuristic risk: the analyzer found limited "
-            "suspicious indicators. This does not mean the URL "
-            "has been verified as safe."
-        )
-
-    # --------------------------------------------------------
-    # BRAND IMPERSONATION WARNING
-    # --------------------------------------------------------
-
-    lookalike_indicators = [
-        indicator
-        for indicator in indicators
-        if any(
-            term in indicator.lower()
-            for term in [
-                "character-substitution",
-                "character substitution",
-                "lookalike",
-                "look-alike",
-                "appears in a subdomain",
-            ]
-        )
+    indicators = result.get("indicators") or []
+    destination = result.get("destination_status", "not_checked")
+    brand_signals = [
+        str(x) for x in indicators
+        if any(t in str(x).lower() for t in (
+            "character-substitution", "character substitution", "lookalike",
+            "look-alike", "appears in a subdomain"
+        ))
     ]
 
-    if lookalike_indicators:
-        st.error(
-            "🚨 Possible Brand Impersonation Detected"
+    if brand_signals:
+        st.markdown(
+            '<div class="alert-danger"><h3>🚨 Possible Brand Impersonation Detected</h3>'
+            '<p>This hostname contains a pattern that may imitate a familiar brand. '
+            'Verify the domain independently. Never enter passwords, payment details, or OTPs.</p></div>',
+            unsafe_allow_html=True,
         )
-
-        st.warning(
-            "This URL contains a possible brand-impersonation "
-            "indicator. A domain may imitate a familiar company "
-            "using substituted characters or by placing a brand "
-            "name inside an unrelated domain. Do not enter "
-            "passwords, payment information, or OTPs."
+    elif str(level).lower() == "high":
+        st.markdown(
+            '<div class="alert-danger"><h3>⚠️ High-Risk Indicators Detected</h3>'
+            '<p>Review the indicators before interacting with this URL.</p></div>',
+            unsafe_allow_html=True,
         )
-
-        for indicator in lookalike_indicators:
-            st.write(f"• {indicator}")
-
-    # --------------------------------------------------------
-    # ANALYSIS DETAILS
-    # --------------------------------------------------------
-
-    st.markdown("#### Analysis Details")
-
-    detail_col1, detail_col2, detail_col3 = st.columns(3)
-
-    detail_col1.markdown("**Analysis Method**")
-    detail_col1.info(
-        result.get(
-            "analysis_method",
-            "local_heuristics",
-        )
-    )
-
-    detail_col2.markdown("**Verification Status**")
-    detail_col2.warning(
-        result.get(
-            "verification_status",
-            "not_checked",
-        )
-    )
-
-    destination_status = result.get(
-        "destination_status",
-        "not_checked",
-    )
-
-    detail_col3.markdown("**Destination Status**")
-
-    if destination_status == "unknown":
-        detail_col3.warning(
-            "Unknown — shortened URL"
-        )
-
-    elif destination_status == "checked":
-        detail_col3.success("Checked")
-
+    elif str(level).lower() == "medium":
+        st.warning("Medium heuristic risk: review the URL before interacting.")
     else:
-        detail_col3.info("Not checked")
+        st.info("Initial heuristic scan complete. Low risk does not mean verified safe.")
 
-    st.caption(
-        "The local analyzer does not visit websites, follow redirects, "
-        "resolve DNS, or query an external threat-intelligence feed."
+    overview, ssl_tab, dns_tab, whois_tab, web_tab, html_tab = st.tabs(
+        ["Overview", "SSL Certificate", "DNS Records", "WHOIS", "Web Analysis", "HTML"]
     )
-
-    # --------------------------------------------------------
-    # SUSPICIOUS INDICATORS
-    # --------------------------------------------------------
-
-    st.markdown("#### Suspicious Indicators")
-
-    if indicators:
-        for indicator in indicators:
-            st.write(f"• {indicator}")
-    else:
-        st.success(
-            "No suspicious indicators were detected by the "
-            "current analysis rules."
+    with overview:
+        left, right = st.columns([1, 3], vertical_alignment="center")
+        with left:
+            show_risk_gauge(score, level)
+        with right:
+            a, b = st.columns(2)
+            with a:
+                metric_card("Target hostname", hostname)
+                metric_card("Analysis method", result.get("analysis_method", "local_heuristics"))
+            with b:
+                metric_card("Verification status", result.get("verification_status", "not_checked"))
+                metric_card("Destination status", destination)
+            st.markdown("#### Suspicious Indicators")
+            if indicators:
+                for indicator in indicators:
+                    st.write("• " + str(indicator))
+            else:
+                st.success("No suspicious indicators detected by the current rules.")
+        st.markdown("#### Recommendation")
+        st.info(result.get("recommendation", "Verify the domain independently before interacting."))
+        if destination == "unknown" or any(
+            "shortener" in str(x).lower() or "shortened url" in str(x).lower()
+            for x in indicators
+        ):
+            st.warning("The URL may be shortened; its final destination has not been checked.")
+        st.caption(
+            "Risk score is a heuristic indicator, not a probability of fraud. "
+            "The current local analyzer does not visit websites, follow redirects, "
+            "resolve DNS, or query external threat feeds."
         )
-
-    # --------------------------------------------------------
-    # SHORTENED URL WARNING
-    # --------------------------------------------------------
-
-    shortened_url_warning = (
-        destination_status == "unknown"
-        or any(
-            "shortened url" in str(indicator).lower()
-            or "shortener" in str(indicator).lower()
-            for indicator in indicators
-        )
-    )
-
-    if shortened_url_warning:
-        st.warning(
-            "**Shortened URL warning:** The final destination "
-            "has not been checked. Do not assume that the "
-            "destination is safe."
-        )
-
-    # --------------------------------------------------------
-    # RECOMMENDATION
-    # --------------------------------------------------------
-
-    st.markdown("#### Recommendation")
-
-    st.write(
-        result.get(
-            "recommendation",
-            "Exercise caution and verify the destination independently.",
-        )
-    )
+    with ssl_tab:
+        st.subheader("SSL Certificate")
+        st.info("Live certificate inspection is not implemented in the current backend. No certificate result is being invented.")
+        st.write("Status: Not checked")
+    with dns_tab:
+        st.subheader("DNS Records")
+        st.info("Live DNS resolution and record inspection are not implemented in the current backend.")
+        st.write("Status: Not checked")
+    with whois_tab:
+        st.subheader("WHOIS / Domain Registration")
+        st.info("WHOIS/RDAP lookup is not implemented in the current backend.")
+        st.write("Status: Not checked")
+    with web_tab:
+        st.subheader("Local Web/URL Analysis")
+        st.write("Hostname:", hostname)
+        st.write("Analysis method:", result.get("analysis_method", "local_heuristics"))
+        st.write("Verification:", result.get("verification_status", "not_checked"))
+        st.write("Destination:", destination)
+        if indicators:
+            for indicator in indicators:
+                st.write("• " + str(indicator))
+        else:
+            st.write("No indicators returned.")
+    with html_tab:
+        st.subheader("HTML Inspection")
+        st.info("The current analyzer does not fetch or parse page HTML.")
+        st.write("Status: Not checked")
 
 
-# ============================================================
-# REUSABLE DEFENSE VALIDATION DISPLAY
-# ============================================================
-
-def show_defense_results(report: dict) -> None:
-    """Display defense validation results."""
-
+def show_defense_results(report):
     if not isinstance(report, dict):
-        st.error("The validation module returned an unexpected result.")
+        st.error("Unexpected validation result.")
         st.json(report)
         return
-
     summary = report.get("summary", {})
-
-    if not isinstance(summary, dict):
-        st.error("The validation summary is unavailable.")
-        st.json(report)
-        return
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Total Checks",
-        summary.get("total", 0),
-    )
-
-    col2.metric(
-        "Passed",
-        summary.get("passed", 0),
-    )
-
-    col3.metric(
-        "Failed",
-        summary.get("failed", 0),
-    )
-
-    overall_status = summary.get(
-        "overall_status",
-        "UNKNOWN",
-    )
-
-    if overall_status == "PASS":
-        st.success(
-            "All registered validation checks passed."
-        )
+    a, b, c = st.columns(3)
+    a.metric("Checks", summary.get("total", 0))
+    b.metric("Passed", summary.get("passed", 0))
+    c.metric("Failed", summary.get("failed", 0))
+    if summary.get("overall_status") == "PASS":
+        st.success("All registered validation checks passed.")
     else:
-        st.error(
-            "One or more validation checks failed, "
-            "or the overall status is not PASS."
-        )
-
-    results = report.get("results", [])
-
-    if not results:
-        st.info("No individual validation results were returned.")
-
-    for item in results:
+        st.warning("One or more checks failed, or the overall status is not PASS.")
+    for item in report.get("results", []):
         if not isinstance(item, dict):
             st.write(item)
             continue
-
-        status = item.get("status", "UNKNOWN")
-        test_name = item.get("test", "Unnamed test")
-
-        with st.expander(
-            f"{status} — {test_name}"
-        ):
-            st.write(
-                item.get(
-                    "details",
-                    "No additional details were provided.",
-                )
-            )
-
-            checks = item.get("checks")
-
-            if checks is not None:
-                st.json(checks)
+        with st.expander(f"{item.get('status', 'UNKNOWN')} — {item.get('test', 'Validation check')}"):
+            st.write(item.get("details", "No additional details."))
+            if "checks" in item:
+                st.json(item["checks"])
 
 
-# ============================================================
-# HOME DASHBOARD
-# ============================================================
-
-if page == "🏠 Home":
-
-    st.markdown(
-        """
-        <div class="hero">
-            <h1>🛡️ CyberRakshak</h1>
-            <p>
-                Detect the Threat. Understand the Attack.
-                Strengthen the Defense.
-            </p>
-            <p>
-                Investigate suspicious URLs, explore safe phishing
-                simulations, and validate security controls.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.subheader("Platform Overview")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Detection Engine",
-        "Available",
-    )
-
-    col2.metric(
-        "Simulation Lab",
-        "Available",
-    )
-
-    col3.metric(
-        "Defense Validation",
-        "Available",
-    )
-
-    st.markdown("### Platform Modules")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.info(
-            "**🔍 URL Investigation**\n\n"
-            "Analyze URL structure, hostname patterns, "
-            "and suspicious indicators."
-        )
-
-        st.info(
-            "**🎭 Simulation Lab**\n\n"
-            "Learn to identify phishing warning signs "
-            "through fictional scenarios."
-        )
-
-        st.info(
-            "**🔐 Authentication Lab**\n\n"
-            "Demonstrate password hashing, OTP verification, "
-            "and login rate limiting."
-        )
-
-    with col2:
-        st.info(
-            "**🌐 Threat Intelligence**\n\n"
-            "Inspect the status of the project's "
-            "threat-intelligence integration."
-        )
-
-        st.info(
-            "**🛡️ Defense Validation**\n\n"
-            "Run automated checks against implemented "
-            "security controls."
-        )
-
-        st.info(
-            "**📄 Reports**\n\n"
-            "Generate and download JSON reports from "
-            "results collected in this session."
-        )
-
+# ---------- Sidebar ----------
+with st.sidebar:
+    st.markdown('<div class="brand"><span>◈</span> CyberRakshak</div>', unsafe_allow_html=True)
+    st.caption("Cyber Threat Detection & Defense Validation")
     st.divider()
-
-    st.markdown("### Current Session")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "URL Investigations",
-        int(st.session_state.last_url_result is not None),
-    )
-
-    col2.metric(
-        "Simulations Run",
-        int(st.session_state.last_simulation_result is not None),
-    )
-
-    col3.metric(
-        "Validation Reports",
-        int(st.session_state.last_defense_result is not None),
-    )
-
+    page = st.radio("WORKSPACE", [
+        "🏠 Home", "🔍 URL Investigation", "🌐 Threat Intelligence",
+        "🎭 Simulation Lab", "🔐 Authentication Lab",
+        "🛡️ Defense Validation", "📄 Reports",
+    ])
+    st.divider()
+    st.markdown("**SYSTEM STATUS**")
+    st.success("Local engine ready")
     st.markdown(
-        """
-        <p class="section-note">
-        CyberRakshak is an educational prototype. Heuristic results
-        are indicators, not proof of malicious activity or safety.
-        </p>
-        """,
+        '<p class="footer-note">Educational prototype. Heuristic scores are not proof '
+        'that a URL is malicious or safe.</p>', unsafe_allow_html=True
+    )
+
+
+# ============================================================
+# 1. HOME
+# ============================================================
+if page == "🏠 Home":
+    st.markdown(
+        '<div class="hero"><div class="eyebrow">Cyber threat investigation workspace</div>'
+        '<h1>Detect the Threat.<br>Understand the Attack.</h1>'
+        '<p>Investigate suspicious URLs, learn to recognize phishing, and validate '
+        'security controls — in one educational cybersecurity platform.</p></div>',
         unsafe_allow_html=True,
     )
+    st.markdown("### Security overview")
+    a, b, c, d = st.columns(4)
+    with a: metric_card("URL engine", "READY", "Local heuristic analysis")
+    with b: metric_card("Simulation lab", "READY", "Fictional scenarios")
+    with c: metric_card("Defense checks", "READY", "Authentication controls")
+    with d: metric_card("Reports", "JSON", "Downloadable session report")
+    st.markdown("### Platform modules")
+    left, right = st.columns(2)
+    with left:
+        st.markdown('<div class="panel"><div class="panel-title">🔍 URL Investigation</div><div class="muted">Score suspicious URLs and inspect indicators.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel"><div class="panel-title">🎭 Simulation Lab</div><div class="muted">Practice spotting phishing warning signs safely.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel"><div class="panel-title">🔐 Authentication Lab</div><div class="muted">Explore password hashing, OTPs, and rate limiting.</div></div>', unsafe_allow_html=True)
+    with right:
+        st.markdown('<div class="panel"><div class="panel-title">🌐 Threat Intelligence</div><div class="muted">Inspect the configured provider status.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel"><div class="panel-title">🛡️ Defense Validation</div><div class="muted">Run registered security checks.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel"><div class="panel-title">📄 Reports</div><div class="muted">Export current-session results.</div></div>', unsafe_allow_html=True)
+    st.markdown("### Current session activity")
+    a, b, c = st.columns(3)
+    a.metric("URL analysis", "Completed" if st.session_state.last_url_result is not None else "Not run")
+    b.metric("Simulation", "Completed" if st.session_state.last_simulation_result is not None else "Not run")
+    c.metric("Defense validation", "Completed" if st.session_state.last_defense_result is not None else "Not run")
 
 
 # ============================================================
-# URL INVESTIGATION
+# 2. URL INVESTIGATION
 # ============================================================
-
 elif page == "🔍 URL Investigation":
-
-    st.title("🔍 URL Investigation")
-
-    st.write(
-        "Analyze a URL's structure and identify potentially "
-        "suspicious indicators using local heuristic rules."
-    )
-
-    st.info(
-        "This investigation uses local analysis. It does not "
-        "open the submitted website."
-    )
-
-    with st.form("url_investigation_form"):
-
-        url = st.text_input(
-            "Enter a URL",
-            placeholder="https://example.com/login",
-        )
-
-        submitted = st.form_submit_button(
-            "Analyze URL",
-            type="primary",
-        )
-
+    st.markdown('<div class="eyebrow">Investigation workspace</div>', unsafe_allow_html=True)
+    st.title("URL Investigation")
+    st.write("Inspect a URL using CyberRakshak's local heuristic detection engine.")
+    with st.form("url_scan_form"):
+        url = st.text_input("Enter URL or domain to scan", value=st.session_state.last_url_input, placeholder="e.g., https://example.com/login")
+        submitted = st.form_submit_button("🔎 Scan URL", type="primary")
     if submitted:
-
         if not url.strip():
-            st.warning(
-                "Enter a URL before starting the analysis."
-            )
-
+            st.warning("Enter a URL or domain first.")
         else:
             try:
-                result = analyze_url(url.strip())
-
+                with st.spinner("Analyzing URL structure..."):
+                    result = analyze_url(url.strip())
                 st.session_state.last_url_result = result
+                st.session_state.last_url_input = url.strip()
                 st.session_state.last_report = None
-
             except Exception as exc:
-                st.error(
-                    "The URL analysis could not be completed."
-                )
-
+                st.error("URL analysis could not be completed.")
                 st.exception(exc)
-
-    result = st.session_state.last_url_result
-
-    if result is not None:
+    if st.session_state.last_url_result is not None:
         st.divider()
-        show_url_result(result)
+        show_url_result(st.session_state.last_url_result)
+    else:
+        st.markdown('<div class="panel"><div class="panel-title">Ready to investigate</div><div class="muted">Enter a URL above to see its risk score, indicators, and recommendation.</div></div>', unsafe_allow_html=True)
 
 
 # ============================================================
-# THREAT INTELLIGENCE
+# 3. THREAT INTELLIGENCE
 # ============================================================
-
 elif page == "🌐 Threat Intelligence":
-
-    st.title("🌐 Threat Intelligence")
-
-    st.write(
-        "Inspect the threat-intelligence integration available "
-        "in the current project."
-    )
-
-    st.warning(
-        "The current provider module is a placeholder unless an "
-        "external provider has been configured. A provider status "
-        "response is not proof that a URL is safe or malicious."
-    )
-
-    with st.form("threat_intelligence_form"):
-
-        threat_url = st.text_input(
-            "URL to check",
-            key="threat_url",
-            placeholder="https://example.com",
-        )
-
-        check_provider = st.form_submit_button(
-            "Check Threat Intelligence",
-            type="primary",
-        )
-
-    if check_provider:
-
-        if not threat_url.strip():
+    st.markdown('<div class="eyebrow">Reputation integration</div>', unsafe_allow_html=True)
+    st.title("Threat Intelligence")
+    st.write("Check the status returned by the project's threat-intelligence module.")
+    st.warning("The current module is a placeholder unless a provider has been configured. This is not a live reputation verdict.")
+    with st.form("ti_form"):
+        url = st.text_input("URL to check", placeholder="https://example.com")
+        submit = st.form_submit_button("Check provider status", type="primary")
+    if submit:
+        if not url.strip():
             st.warning("Enter a URL first.")
-
         else:
             try:
-                result = check_threat_intelligence(
-                    threat_url.strip()
-                )
-
+                result = check_threat_intelligence(url.strip())
                 if isinstance(result, dict):
-
-                    status = result.get(
-                        "status",
-                        "unknown",
-                    )
-
-                    message = result.get(
-                        "message",
-                        "No message was returned by the provider.",
-                    )
-
-                    if status == "invalid_input":
-                        st.error(message)
-
-                    elif status in {
-                        "not_configured",
-                        "provider_not_configured",
-                    }:
-                        st.warning(message)
-
-                    else:
-                        st.info(message)
-
-                    st.markdown("#### Provider Response")
+                    status = result.get("status", "unknown")
+                    message = result.get("message", "No provider message returned.")
+                    if status == "invalid_input": st.error(message)
+                    elif "not_configured" in str(status): st.warning(message)
+                    else: st.info(message)
+                    st.markdown("#### Provider response")
                     st.json(result)
-
                 else:
                     st.write(result)
-
             except Exception as exc:
-                st.error(
-                    "The threat-intelligence check failed."
-                )
-
+                st.error("Threat-intelligence check failed.")
                 st.exception(exc)
 
-    st.divider()
-
-    st.markdown("### What Threat Intelligence Adds")
-
-    st.write(
-        "A real integration could compare indicators against "
-        "reputable threat feeds. Until such a provider is configured, "
-        "this module must not be treated as a live reputation check."
-    )
-
 
 # ============================================================
-# PHISHING SIMULATION LAB
+# 4. SIMULATION LAB
 # ============================================================
-
 elif page == "🎭 Simulation Lab":
-
-    st.title("🎭 Phishing Simulation Lab")
-
-    st.write(
-        "Explore fictional phishing-awareness scenarios and learn "
-        "to recognize deceptive messages safely."
-    )
-
-    st.info(
-        "The simulations are for education. Do not use real accounts, "
-        "real passwords, OTPs, or real targets."
-    )
-
+    st.markdown('<div class="eyebrow">Security awareness</div>', unsafe_allow_html=True)
+    st.title("Phishing Simulation Lab")
+    st.write("Explore fictional scenarios without contacting real targets or collecting credentials.")
     if not isinstance(SCENARIOS, dict) or not SCENARIOS:
-
-        st.error(
-            "No simulation scenarios are configured in "
-            "simulation/phishing_simulator.py."
-        )
-
+        st.error("No scenarios are configured in simulation/phishing_simulator.py.")
     else:
-
-        scenario_ids = list(SCENARIOS.keys())
-
-        def scenario_label(scenario_id):
-            scenario = SCENARIOS[scenario_id]
-
-            if isinstance(scenario, dict):
-                return scenario.get("title", str(scenario_id))
-
-            return str(scenario_id)
-
-        selected_scenario_id = st.selectbox(
-            "Choose a scenario",
-            options=scenario_ids,
-            format_func=scenario_label,
-        )
-
-        selected_scenario = SCENARIOS[selected_scenario_id]
-
-        if isinstance(selected_scenario, dict):
-
-            message = selected_scenario.get(
-                "message",
-                "Review the selected fictional scenario.",
-            )
-
-            st.markdown("### Scenario Preview")
-            st.info(message)
-
-        if st.button(
-            "Run Simulation",
-            type="primary",
-        ):
-
+        ids = list(SCENARIOS.keys())
+        def title_for(sid):
+            item = SCENARIOS[sid]
+            return item.get("title", str(sid)) if isinstance(item, dict) else str(sid)
+        sid = st.selectbox("Choose a scenario", ids, format_func=title_for)
+        selected = SCENARIOS[sid]
+        if isinstance(selected, dict):
+            st.markdown("#### Scenario preview")
+            st.info(selected.get("message", "Review this fictional scenario."))
+        if st.button("Run simulation", type="primary"):
             try:
-                simulation_result = run_simulation(
-                    selected_scenario_id
-                )
-
-                st.session_state.last_simulation_result = (
-                    simulation_result
-                )
-
+                st.session_state.last_simulation_result = run_simulation(sid)
                 st.session_state.last_report = None
-
             except Exception as exc:
-                st.error(
-                    "The simulation could not be completed."
-                )
-
+                st.error("Simulation could not be completed.")
                 st.exception(exc)
-
         result = st.session_state.last_simulation_result
-
         if result is not None:
-
             st.divider()
-
             if not isinstance(result, dict):
                 st.write(result)
-
             else:
-
-                st.subheader(
-                    result.get(
-                        "title",
-                        "Simulation Results",
-                    )
-                )
-
-                if result.get("message"):
-                    st.write(result["message"])
-
-                warning_signs = result.get(
-                    "warning_signs",
-                    [],
-                )
-
-                if warning_signs:
-                    st.markdown("#### Warning Signs")
-
-                    for sign in warning_signs:
-                        st.write(f"• {sign}")
-
-                url_analysis = result.get("url_analysis")
-
-                if isinstance(url_analysis, dict):
-                    st.markdown("#### Related URL Analysis")
-                    show_url_result(url_analysis)
-
-                safe_action = result.get("safe_action")
-
-                if safe_action:
-                    st.markdown("#### Recommended Safe Action")
-                    st.success(safe_action)
-
-                st.caption(
-                    "Use the lessons from the simulation to verify "
-                    "senders independently, avoid suspicious links, "
-                    "and never disclose passwords or OTPs."
-                )
+                st.subheader(result.get("title", "Simulation results"))
+                if result.get("message"): st.write(result["message"])
+                signs = result.get("warning_signs", [])
+                if signs:
+                    st.markdown("#### Warning signs")
+                    for sign in signs: st.write("• " + str(sign))
+                analysis = result.get("url_analysis")
+                if isinstance(analysis, dict):
+                    st.markdown("#### Related URL analysis")
+                    show_url_result(analysis)
+                if result.get("safe_action"):
+                    st.markdown("#### Safe action")
+                    st.success(result["safe_action"])
+                st.caption("Fictional educational simulation; no real credentials are collected.")
 
 
 # ============================================================
-# AUTHENTICATION SECURITY LAB
+# 5. AUTHENTICATION LAB
 # ============================================================
-
 elif page == "🔐 Authentication Lab":
-
-    st.title("🔐 Authentication Security Lab")
-
-    st.write(
-        "Demonstrate password hashing, OTP verification, "
-        "and login rate limiting with fictional data."
-    )
-
-    st.warning(
-        "Use fictional demo values only. Never enter a real "
-        "account password or real OTP."
-    )
-
-    tab1, tab2, tab3 = st.tabs(
-        [
-            "Password Hashing",
-            "OTP Demonstration",
-            "Login Rate Limiting",
-        ]
-    )
-
-    # --------------------------------------------------------
-    # TAB 1: PASSWORD HASHING
-    # --------------------------------------------------------
-
+    st.markdown('<div class="eyebrow">Authentication defense</div>', unsafe_allow_html=True)
+    st.title("Authentication Security Lab")
+    st.write("Demonstrate security controls with fictional test data only.")
+    tab1, tab2, tab3 = st.tabs(["Password hashing", "OTP demonstration", "Rate limiting"])
     with tab1:
-
-        st.subheader("Password Hashing")
-
-        password = st.text_input(
-            "Fictional demo password",
-            type="password",
-            key="demo_password",
-        )
-
-        if st.button(
-            "Hash Demo Password",
-            key="hash_demo_password_button",
-        ):
-
+        st.subheader("Password hashing")
+        password = st.text_input("Fictional demo password", type="password", key="demo_password")
+        if st.button("Generate password hash", key="make_hash"):
             if not password:
-                st.warning(
-                    "Enter a fictional demo password first."
-                )
-
+                st.warning("Enter a fictional demo password.")
             else:
                 try:
-                    stored_hash = hash_password(password)
-
-                    st.session_state.demo_hash = stored_hash
-
-                    st.success(
-                        "Password hash generated successfully."
-                    )
-
+                    st.session_state.demo_hash = hash_password(password)
+                    st.success("Hash generated.")
                 except Exception as exc:
-                    st.error(
-                        "Password hashing failed."
-                    )
-
+                    st.error("Password hashing failed.")
                     st.exception(exc)
-
         stored = st.session_state.demo_hash
-
         if stored is not None:
-
-            st.markdown("#### Stored Password Hash")
-
-            if isinstance(stored, dict):
-                st.json(stored)
-            else:
-                st.code(str(stored))
-
-            check_password = st.text_input(
-                "Password to verify",
-                type="password",
-                key="verify_demo_password",
-            )
-
-            if st.button(
-                "Verify Password",
-                key="verify_demo_password_button",
-            ):
-
-                if not check_password:
-                    st.warning(
-                        "Enter the demo password to verify."
-                    )
-
-                else:
-                    try:
-                        verified = verify_password(
-                            check_password,
-                            stored,
-                        )
-
-                        if verified:
-                            st.success(
-                                "Password verification succeeded."
-                            )
-                        else:
-                            st.error(
-                                "Password verification failed."
-                            )
-
-                    except Exception as exc:
-                        st.error(
-                            "Password verification could not be completed."
-                        )
-
-                        st.exception(exc)
-
-        st.caption(
-            "Password hashing stores a derived hash instead of "
-            "the original password. Do not use real account passwords "
-            "in this demonstration."
-        )
-
-    # --------------------------------------------------------
-    # TAB 2: OTP DEMONSTRATION
-    # --------------------------------------------------------
-
+            st.markdown("#### Stored hash representation")
+            if isinstance(stored, dict): st.json(stored)
+            else: st.code(str(stored))
+            check = st.text_input("Password to verify", type="password", key="verify_password_input")
+            if st.button("Verify password", key="check_hash"):
+                try:
+                    if verify_password(check, stored): st.success("Password verification succeeded.")
+                    else: st.error("Password verification failed.")
+                except Exception as exc:
+                    st.error("Password verification failed to run.")
+                    st.exception(exc)
+        st.caption("Never enter a real account password in this demonstration.")
     with tab2:
-
-        st.subheader("One-Time Password Demonstration")
-
-        st.write(
-            "Generate a temporary demo OTP and verify it using "
-            "the project's authentication module."
-        )
-
-        if st.button(
-            "Generate Demo OTP",
-            key="generate_demo_otp_button",
-        ):
-
+        st.subheader("One-time password")
+        if st.button("Generate demo OTP", key="make_otp"):
             try:
-                challenge = create_otp(
-                    ttl_seconds=120
-                )
-
-                st.session_state.demo_otp = challenge
-
-                st.success(
-                    "Demo OTP generated."
-                )
-
+                st.session_state.demo_otp = create_otp(ttl_seconds=120)
+                st.success("Demo OTP generated locally.")
             except Exception as exc:
                 st.session_state.demo_otp = None
-
-                st.error(
-                    "Could not generate the demo OTP."
-                )
-
+                st.error("OTP generation failed.")
                 st.exception(exc)
-
         challenge = st.session_state.demo_otp
-
         if challenge is not None:
-
-            # Display only the locally generated demonstration code.
-            if isinstance(challenge, dict):
-                displayed_code = challenge.get("code")
-
-            else:
-                displayed_code = getattr(
-                    challenge,
-                    "code",
-                    None,
-                )
-
-            if displayed_code is not None:
-                st.markdown("#### Demo OTP")
-                st.code(str(displayed_code))
-
-            st.caption(
-                "This code is displayed locally for demonstration. "
-                "It is not sent to a phone or real account."
-            )
-
-            submitted_otp = st.text_input(
-                "Enter the demo OTP",
-                key="submitted_demo_otp",
-            )
-
-            if st.button(
-                "Verify Demo OTP",
-                key="verify_demo_otp_button",
-            ):
-
-                if not submitted_otp.strip():
-                    st.warning(
-                        "Enter the demo OTP first."
-                    )
-
+            code = challenge.get("code") if isinstance(challenge, dict) else getattr(challenge, "code", None)
+            if code is not None:
+                st.markdown("#### Local demo code")
+                st.code(str(code))
+            submitted = st.text_input("Enter demo OTP", key="otp_entry")
+            if st.button("Verify demo OTP", key="check_otp"):
+                if not submitted.strip():
+                    st.warning("Enter the demo OTP.")
                 else:
                     try:
-                        verified = verify_otp(
-                            challenge,
-                            submitted_otp.strip(),
-                        )
-
-                        if verified:
-                            st.success(
-                                "OTP accepted by the verification module."
-                            )
-                        else:
-                            st.error(
-                                "OTP rejected. It may be incorrect, "
-                                "expired, previously used, or blocked "
-                                "by the attempt limit."
-                            )
-
+                        if verify_otp(challenge, submitted.strip()): st.success("OTP accepted.")
+                        else: st.error("OTP rejected, expired, already used, or blocked.")
                     except Exception as exc:
-                        st.error(
-                            "OTP verification could not be completed."
-                        )
-
+                        st.error("OTP verification failed to run.")
                         st.exception(exc)
-
-    # --------------------------------------------------------
-    # TAB 3: LOGIN RATE LIMITING
-    # --------------------------------------------------------
-
+        st.caption("This OTP is not delivered to a real phone or account.")
     with tab3:
-
-        st.subheader("Login Rate Limiting")
-
-        st.write(
-            "Simulate failed login attempts against a fictional "
-            "account to demonstrate rate limiting."
-        )
-
+        st.subheader("Login rate limiting")
         if st.session_state.demo_limiter is None:
-
-            st.session_state.demo_limiter = LoginRateLimiter(
-                max_attempts=3,
-                window_seconds=60,
-            )
-
+            st.session_state.demo_limiter = LoginRateLimiter(max_attempts=3, window_seconds=60)
         limiter = st.session_state.demo_limiter
-        demo_account = "fictional-demo-account"
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-
-            if st.button(
-                "Record Failed Login",
-                key="record_failed_login_button",
-            ):
-
+        account = "fictional-demo-account"
+        left, right = st.columns(2)
+        with left:
+            if st.button("Record failed login", key="record_failure"):
                 try:
-                    if limiter.is_allowed(demo_account):
-
-                        limiter.record_failure(demo_account)
-
-                        st.warning(
-                            "A failed login attempt was recorded."
-                        )
-
-                    else:
-                        st.error(
-                            "Rate limit reached. Further attempts "
-                            "are currently blocked."
-                        )
-
+                    if limiter.is_allowed(account):
+                        limiter.record_failure(account)
+                        st.warning("A failed login attempt was recorded.")
+                    else: st.error("Rate limit reached; further attempts are blocked.")
                 except Exception as exc:
-                    st.error(
-                        "Could not record the demonstration attempt."
-                    )
-
+                    st.error("Could not record attempt.")
                     st.exception(exc)
-
-        with col2:
-
-            if st.button(
-                "Check Login Availability",
-                key="check_login_availability_button",
-            ):
-
+        with right:
+            if st.button("Check availability", key="check_limiter"):
                 try:
-                    if limiter.is_allowed(demo_account):
-                        st.success(
-                            "Another attempt is currently allowed."
-                        )
-                    else:
-                        st.error(
-                            "Login attempts are currently rate-limited."
-                        )
-
+                    if limiter.is_allowed(account): st.success("Another attempt is currently allowed.")
+                    else: st.error("Attempts are currently rate-limited.")
                 except Exception as exc:
-                    st.error(
-                        "Could not check rate-limit status."
-                    )
-
+                    st.error("Could not check rate limit.")
                     st.exception(exc)
-
-        if st.button(
-            "Reset Demo Limiter",
-            key="reset_demo_limiter_button",
-        ):
-
-            st.session_state.demo_limiter = LoginRateLimiter(
-                max_attempts=3,
-                window_seconds=60,
-            )
-
-            st.success(
-                "The demonstration rate limiter has been reset."
-            )
-
-        st.caption(
-            "This is a local demonstration, not a production login system."
-        )
+        if st.button("Reset demo limiter", key="reset_limiter"):
+            st.session_state.demo_limiter = LoginRateLimiter(max_attempts=3, window_seconds=60)
+            st.success("Demo limiter reset.")
+        st.caption("Local demonstration only; not a production authentication service.")
 
 
 # ============================================================
-# DEFENSE VALIDATION
+# 6. DEFENSE VALIDATION
 # ============================================================
-
 elif page == "🛡️ Defense Validation":
-
-    st.title("🛡️ Defense Validation Engine")
-
-    st.write(
-        "Run automated checks against security controls "
-        "implemented in the CyberRakshak project."
-    )
-
-    st.info(
-        "Validation results describe the checks implemented in "
-        "this project. They do not certify the security of an "
-        "entire computer or network."
-    )
-
-    if st.button(
-        "Run All Validations",
-        type="primary",
-    ):
-
+    st.markdown('<div class="eyebrow">Control verification</div>', unsafe_allow_html=True)
+    st.title("Defense Validation")
+    st.write("Run the automated security checks registered in this project.")
+    st.info("These checks evaluate implemented controls; they do not certify an entire system.")
+    if st.button("Run all validations", type="primary"):
         try:
-            defense_report = run_all_validations()
-
-            st.session_state.last_defense_result = defense_report
+            st.session_state.last_defense_result = run_all_validations()
             st.session_state.last_report = None
-
         except Exception as exc:
-            st.error(
-                "Defense validation could not be completed."
-            )
-
+            st.error("Defense validation failed to run.")
             st.exception(exc)
-
-    report = st.session_state.last_defense_result
-
-    if report is not None:
-
+    if st.session_state.last_defense_result is not None:
         st.divider()
-
-        show_defense_results(report)
-
-        with st.expander("View Full Validation Report"):
-            st.json(report)
+        show_defense_results(st.session_state.last_defense_result)
+        with st.expander("Full validation report"):
+            st.json(st.session_state.last_defense_result)
 
 
 # ============================================================
-# REPORT GENERATION
+# 7. REPORTS
 # ============================================================
-
 elif page == "📄 Reports":
-
-    st.title("📄 Investigation Reports")
-
-    st.write(
-        "Generate a downloadable JSON report using results "
-        "collected during the current session."
-    )
-
-    st.caption(
-        "Only results generated in this session are included. "
-        "Results are not automatically restored from previous sessions."
-    )
-
+    st.markdown('<div class="eyebrow">Evidence and export</div>', unsafe_allow_html=True)
+    st.title("Investigation Reports")
+    st.write("Generate a JSON report from results collected during this session.")
     url_result = st.session_state.last_url_result
-    simulation_result = st.session_state.last_simulation_result
+    sim_result = st.session_state.last_simulation_result
     defense_result = st.session_state.last_defense_result
-
-    # --------------------------------------------------------
-    # AVAILABLE RESULTS
-    # --------------------------------------------------------
-
-    st.markdown("### Available Results")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "URL Analysis",
-        "Available" if url_result is not None else "Not Run",
-    )
-
-    col2.metric(
-        "Simulation",
-        "Available" if simulation_result is not None else "Not Run",
-    )
-
-    col3.metric(
-        "Defense Validation",
-        "Available" if defense_result is not None else "Not Run",
-    )
-
-    st.divider()
-
-    # --------------------------------------------------------
-    # GENERATE REPORT
-    # --------------------------------------------------------
-
-    if st.button(
-        "Generate JSON Report",
-        type="primary",
-    ):
-
-        if not any(
-            item is not None
-            for item in [
-                url_result,
-                simulation_result,
-                defense_result,
-            ]
-        ):
-
-            st.warning(
-                "Run at least one URL investigation, simulation, "
-                "or defense validation before generating a report."
-            )
-
+    a, b, c = st.columns(3)
+    a.metric("URL analysis", "Available" if url_result is not None else "Not run")
+    b.metric("Simulation", "Available" if sim_result is not None else "Not run")
+    c.metric("Defense validation", "Available" if defense_result is not None else "Not run")
+    if st.button("Generate JSON report", type="primary"):
+        if all(x is None for x in (url_result, sim_result, defense_result)):
+            st.warning("Run at least one investigation or validation first.")
         else:
-
             try:
-                report = generate_report(
+                st.session_state.last_report = generate_report(
                     url_analysis=url_result,
-                    simulation_result=simulation_result,
+                    simulation_result=sim_result,
                     defense_report=defense_result,
                 )
-
-                st.session_state.last_report = report
-
-                st.success(
-                    "JSON report generated successfully."
-                )
-
+                st.success("Report generated.")
             except Exception as exc:
-                st.error(
-                    "Report generation failed."
-                )
-
+                st.error("Report generation failed.")
                 st.exception(exc)
-
     report = st.session_state.last_report
-
-    # --------------------------------------------------------
-    # REPORT PREVIEW AND DOWNLOAD
-    # --------------------------------------------------------
-
     if report is not None:
-
-        st.markdown("### Report Preview")
-
-        st.json(report)
-
-        report_json = json.dumps(
-            report,
-            indent=4,
-            ensure_ascii=False,
-            default=str,
-        )
-
+        report_text = json.dumps(report, indent=2, ensure_ascii=False, default=str)
+        with st.expander("Preview JSON report", expanded=True):
+            st.code(report_text, language="json")
         st.download_button(
-            label="⬇️ Download JSON Report",
-            data=report_json,
-            file_name="cyberrakshak_report.json",
-            mime="application/json",
+            "⬇ Download JSON report", data=report_text,
+            file_name="cyberrakshak_report.json", mime="application/json",
             type="primary",
         )
-
-        st.success(
-            "Your report is ready to download."
-        )
-
-    st.caption(
-        "The current report export is JSON. PDF export is not "
-        "implemented in this dashboard."
-    )
+    st.caption("Reports include current-session results only. PDF export is not implemented.")
 
 
-# ============================================================
-# END OF CYBERRAKSHAK DASHBOARD
-# ============================================================
-
+st.divider()
+st.markdown(
+    '<div class="footer-note">CyberRakshak · Detect the Threat. Understand the Attack. Protect the User. '
+    'Use only for authorized, educational security investigation.</div>',
+    unsafe_allow_html=True,
+)
