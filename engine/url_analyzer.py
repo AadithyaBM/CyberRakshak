@@ -2,13 +2,11 @@
 """
 CyberRakshak: Phishing Intelligence Engine
 
-Purpose:
-    Inspect URL structure for potentially suspicious indicators.
+Local heuristic URL analysis.
+Does not visit URLs, resolve DNS, follow redirects, or contact
+external threat-intelligence services.
 
-Important:
-    This is a heuristic screening tool, not a definitive malware detector.
-    Risk scores are not probabilities.
-    No network requests or external threat-intelligence checks are performed.
+Risk scores are heuristic indicators, not probabilities.
 """
 
 import ipaddress
@@ -40,11 +38,29 @@ SHORTENER_DOMAINS = {
 MAX_URL_LENGTH = 2048
 MAX_HOSTNAME_LENGTH = 253
 
-# These thresholds are heuristic categories, not probabilities.
 RISK_THRESHOLDS = {
     "medium": 25,
     "high": 50,
 }
+
+# Selected brands for basic lookalike screening.
+LOOKALIKE_TARGETS = {
+    "paypal",
+    "google",
+    "microsoft",
+    "apple",
+    "amazon",
+}
+
+# Character substitutions commonly used in deceptive domain names.
+LOOKALIKE_SUBSTITUTIONS = str.maketrans({
+    "0": "o",
+    "1": "l",
+    "3": "e",
+    "4": "a",
+    "5": "s",
+    "7": "t",
+})
 
 
 def _invalid_result(message: str) -> dict:
@@ -64,7 +80,7 @@ def _invalid_result(message: str) -> dict:
 
 
 def _is_ip_address(hostname: str) -> bool:
-    """Return True if the hostname is a valid IPv4 or IPv6 address."""
+    """Check whether a hostname is an IPv4 or IPv6 address."""
     try:
         ipaddress.ip_address(hostname)
         return True
@@ -73,11 +89,7 @@ def _is_ip_address(hostname: str) -> bool:
 
 
 def _is_valid_hostname(hostname: str) -> bool:
-    """
-    Check basic hostname syntax without performing a DNS lookup.
-
-    This does not establish whether a hostname exists or is trustworthy.
-    """
+    """Check basic hostname syntax without performing a DNS lookup."""
     if not hostname or len(hostname) > MAX_HOSTNAME_LENGTH:
         return False
 
@@ -96,19 +108,57 @@ def _is_valid_hostname(hostname: str) -> bool:
         if not re.fullmatch(r"[a-z0-9-]+", label):
             return False
 
-    # Reject numeric-only hostname forms that are not valid IP addresses.
     if re.fullmatch(r"[0-9.]+", hostname):
         return False
 
     return True
 
 
+def _detect_lookalike_domain(hostname: str) -> bool:
+    """
+    Detect selected character substitutions in hostname labels.
+
+    Examples:
+        paypa1.com
+        g00gle.com
+        amaz0n.com
+    """
+    labels = hostname.lower().split(".")
+
+    for label in labels:
+        normalized = label.translate(LOOKALIKE_SUBSTITUTIONS)
+
+        if normalized in LOOKALIKE_TARGETS and normalized != label:
+            return True
+
+    return False
+
+
+def _detect_suspicious_brand_subdomain(hostname: str) -> bool:
+    """
+    Flag a selected brand in a subdomain when the remaining domain
+    portion does not itself represent that brand.
+
+    Example: paypal.example.com
+    """
+    labels = hostname.lower().split(".")
+
+    if len(labels) < 3:
+        return False
+
+    subdomains = labels[:-2]
+
+    return any(
+        label in LOOKALIKE_TARGETS
+        for label in subdomains
+    )
+
+
 def analyze_url(url: str) -> dict:
     """
     Analyze URL structure and return heuristic indicators.
 
-    Does not visit the URL, resolve DNS, follow redirects, or contact
-    an external threat-intelligence provider.
+    No network requests are made.
     """
 
     # 1. Validate input.
@@ -134,7 +184,7 @@ def analyze_url(url: str) -> dict:
     if "://" not in url:
         url = "https://" + url
 
-    # 5. Parse and validate URL structure.
+    # 5. Parse and validate URL.
     try:
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
@@ -153,14 +203,10 @@ def analyze_url(url: str) -> dict:
         port = parsed.port
 
         if not _is_valid_hostname(hostname):
-            return _invalid_result(
-                "The hostname format is invalid."
-            )
+            return _invalid_result("The hostname format is invalid.")
 
     except (ValueError, UnicodeError):
-        return _invalid_result(
-            "The URL format could not be parsed."
-        )
+        return _invalid_result("The URL format could not be parsed.")
 
     indicators = []
     score = 0
@@ -168,13 +214,9 @@ def analyze_url(url: str) -> dict:
     is_ip = _is_ip_address(hostname)
     is_shortener = hostname in SHORTENER_DOMAINS
 
-    # Destination status describes what this analyzer knows.
-    # It does not mean the destination was tested.
-    destination_status = (
-        "unknown" if is_shortener else "not_checked"
-    )
+    destination_status = "unknown" if is_shortener else "not_checked"
 
-    # 6. IP address used as the hostname.
+    # 6. IP address as hostname.
     if is_ip:
         indicators.append(
             "The hostname is an IP address rather than a domain name."
@@ -186,7 +228,7 @@ def analyze_url(url: str) -> dict:
         indicators.append("The URL is unusually long.")
         score += 10
 
-    # 8. @ symbol in the authority section.
+    # 8. @ symbol in authority section.
     if "@" in parsed.netloc:
         indicators.append(
             "The URL contains '@', which can obscure the destination."
@@ -200,7 +242,23 @@ def analyze_url(url: str) -> dict:
         )
         score += 15
 
-    # 10. Known URL-shortening service.
+    # 10. Lookalike-domain detection.
+    if not is_ip and _detect_lookalike_domain(hostname):
+        indicators.append(
+            "The hostname contains a character-substitution pattern "
+            "that resembles a selected well-known brand."
+        )
+        score += 20
+
+    # 11. Suspicious brand subdomain detection.
+    if not is_ip and _detect_suspicious_brand_subdomain(hostname):
+        indicators.append(
+            "A selected well-known brand appears in a subdomain. "
+            "Check the actual domain before trusting the URL."
+        )
+        score += 15
+
+    # 12. Known URL shortener.
     if is_shortener:
         indicators.append(
             "The URL uses a known URL-shortening service."
@@ -210,7 +268,7 @@ def analyze_url(url: str) -> dict:
         )
         score += 20
 
-    # 11. Potentially sensitive terms in hostname and path.
+    # 13. Potentially sensitive terms.
     url_text = f"{hostname}{parsed.path}".lower()
 
     matched_keywords = sorted(
@@ -227,7 +285,7 @@ def analyze_url(url: str) -> dict:
         )
         score += min(20, len(matched_keywords) * 5)
 
-    # 12. HTTP connection.
+    # 14. HTTP connection.
     if scheme == "http":
         indicators.append(
             "The URL uses HTTP instead of HTTPS. "
@@ -235,17 +293,17 @@ def analyze_url(url: str) -> dict:
         )
         score += 10
 
-    # 13. Non-standard port.
+    # 15. Non-standard port.
     if port is not None and port not in {80, 443}:
         indicators.append(
             f"The URL uses a non-standard port ({port})."
         )
         score += 10
 
-    # 14. Cap the score.
+    # 16. Cap score.
     score = min(score, 100)
 
-    # 15. Assign the risk category.
+    # 17. Assign risk category.
     if score >= RISK_THRESHOLDS["high"]:
         risk_level = "High"
         recommendation = (
@@ -253,7 +311,6 @@ def analyze_url(url: str) -> dict:
             "credentials or sensitive information. Verify the destination "
             "using an independently obtained official source."
         )
-
     elif score >= RISK_THRESHOLDS["medium"]:
         risk_level = "Medium"
         recommendation = (
@@ -261,7 +318,6 @@ def analyze_url(url: str) -> dict:
             "Verify the destination independently before sharing "
             "sensitive information."
         )
-
     else:
         risk_level = "Low"
         recommendation = (
@@ -269,20 +325,20 @@ def analyze_url(url: str) -> dict:
             "This does not guarantee that the URL is safe."
         )
 
-    # 16. Explain shortened URL uncertainty.
+    # 18. Explain shortened URL uncertainty.
     if is_shortener:
         recommendation += (
             " The final destination is unknown because this analyzer "
             "does not follow shortened links."
         )
 
-    # 17. Explain when no indicators are detected.
+    # 19. Report when no indicators are detected.
     if not indicators:
         indicators.append(
             "No suspicious indicators were detected by the current rules."
         )
 
-    # 18. Return the complete result.
+    # 20. Return the complete result.
     return {
         "valid": True,
         "normalized_url": url,

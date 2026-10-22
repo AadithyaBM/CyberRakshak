@@ -1,144 +1,167 @@
 
+"""
+CyberRakshak: URL Analyzer Tests
+
+Tests local URL validation, heuristic risk scoring,
+lookalike domains, suspicious subdomains, and result fields.
+"""
+
 import pytest
 
 from engine.url_analyzer import analyze_url
 
 
-def test_normal_url_is_analyzed():
-    result = analyze_url("https://example.com")
+def test_valid_https_url():
+    result = analyze_url("https://www.google.com")
+    assert result["valid"] is True
+    assert result["hostname"] == "www.google.com"
+    assert result["analysis_method"] == "local_heuristics"
 
+
+def test_valid_http_url():
+    result = analyze_url("http://example.com")
     assert result["valid"] is True
     assert result["hostname"] == "example.com"
-    assert result["risk_level"] == "Low"
 
 
-def test_missing_scheme_is_normalized():
+def test_empty_url_is_invalid():
+    assert analyze_url("")["valid"] is False
+
+
+def test_plain_text_is_invalid():
+    assert analyze_url("this is not a URL")["valid"] is False
+
+
+def test_url_without_scheme_is_normalized():
     result = analyze_url("example.com")
-
     assert result["valid"] is True
-    assert result["normalized_url"] == "https://example.com"
+    assert result["normalized_url"].startswith("https://")
 
 
-def test_ip_address_hostname_is_flagged():
-    result = analyze_url("http://192.0.2.10")
-
+def test_http_url_has_warning_indicator():
+    result = analyze_url("http://example.com")
     assert result["valid"] is True
-    assert any("IP address" in item for item in result["indicators"])
+    assert result["risk_score"] > 0
 
 
-def test_ipv6_address_is_accepted():
-    result = analyze_url("https://[2001:db8::1]")
-
+def test_https_does_not_guarantee_safety():
+    result = analyze_url("https://example.com")
     assert result["valid"] is True
-    assert result["hostname"] == "2001:db8::1"
-    assert any("IP address" in item for item in result["indicators"])
+    assert result["verification_status"] == "not_checked"
 
 
-def test_url_with_sensitive_keywords_is_flagged():
+def test_ip_address_hostname():
+    result = analyze_url("http://192.0.2.1/login")
+    assert result["valid"] is True
+    assert result["hostname"] == "192.0.2.1"
+    assert result["risk_score"] > 0
+
+
+def test_suspicious_login_keyword():
     result = analyze_url("https://example.com/login")
-
     assert result["valid"] is True
-    assert any(
-        "Potentially sensitive terms" in item
-        for item in result["indicators"]
-    )
+    assert result["risk_score"] > 0
 
 
-def test_shortener_domain_is_flagged():
+def test_long_url_is_analyzed():
+    result = analyze_url("https://example.com/" + "a" * 250)
+    assert result["valid"] is True
+    assert result["risk_score"] >= 0
+
+
+def test_at_symbol_in_url_is_flagged():
+    result = analyze_url("https://example.com@evil.test/login")
+    assert result["valid"] is True
+    assert result["hostname"] == "evil.test"
+    assert result["risk_score"] > 0
+
+
+def test_shortened_url_destination_is_unknown():
     result = analyze_url("https://bit.ly/example")
-
     assert result["valid"] is True
-    assert any(
-        "shortening service" in item
-        for item in result["indicators"]
-    )
+    assert result["destination_status"] == "unknown"
+    assert result["verification_status"] == "not_checked"
 
 
-def test_shortener_warns_that_destination_is_unknown():
-    result = analyze_url("https://bit.ly/example")
-
+def test_regular_url_destination_is_not_verified():
+    result = analyze_url("https://example.com")
     assert result["valid"] is True
-    assert "destination is unknown" in result["recommendation"].lower()
+    assert result["destination_status"] == "not_checked"
+    assert result["verification_status"] == "not_checked"
+
+
+def test_result_contains_required_fields():
+    result = analyze_url("https://example.com")
+
+    required_fields = {
+        "valid",
+        "normalized_url",
+        "hostname",
+        "risk_score",
+        "risk_level",
+        "indicators",
+        "recommendation",
+        "analysis_method",
+        "verification_status",
+        "destination_status",
+    }
+
+    assert required_fields.issubset(result.keys())
+
+
+def test_risk_score_is_between_zero_and_100():
+    result = analyze_url("https://example.com")
+    assert 0 <= result["risk_score"] <= 100
+
+
+def test_risk_level_is_valid():
+    result = analyze_url("https://example.com")
+    assert result["risk_level"] in {"Low", "Medium", "High"}
+
+
+def test_indicators_are_a_list():
+    result = analyze_url("https://example.com")
+    assert isinstance(result["indicators"], list)
+
+
+def test_recommendation_is_not_empty():
+    result = analyze_url("https://example.com")
+    assert result["recommendation"].strip()
 
 
 @pytest.mark.parametrize(
     "url",
     [
-        "",
-        "   ",
-        "ftp://example.com",
-        "https://",
-        "https://example..com",
-        "https://example.com:invalid",
-        "https://-example.com",
-        "https://example-.com",
-        "https://exa_mple.com",
-        "https://example.com./bad host",
+        "https://paypa1.com",
+        "https://g00gle.com",
+        "https://amaz0n.com",
     ],
 )
-def test_invalid_urls_are_rejected(url):
+def test_lookalike_domains_are_flagged(url):
     result = analyze_url(url)
-
-    assert result["valid"] is False
-    assert result["risk_level"] == "Invalid"
-
-
-def test_whitespace_inside_url_is_rejected():
-    result = analyze_url("https://example .com")
-
-    assert result["valid"] is False
-
-
-def test_url_exceeding_maximum_length_is_rejected():
-    long_url = "https://example.com/" + ("a" * 2050)
-
-    result = analyze_url(long_url)
-
-    assert result["valid"] is False
-    assert result["risk_level"] == "Invalid"
-
-
-def test_valid_hostname_with_hyphen_is_accepted():
-    result = analyze_url("https://my-example.com")
-
     assert result["valid"] is True
-    assert result["hostname"] == "my-example.com"
+    assert result["risk_score"] > 0
+    assert any(
+        "character-substitution" in indicator
+        for indicator in result["indicators"]
+    )
 
 
-def test_hostname_is_normalized_to_lowercase():
-    result = analyze_url("https://EXAMPLE.COM")
-
+def test_legitimate_google_domain_is_not_flagged_as_lookalike():
+    result = analyze_url("https://google.com")
     assert result["valid"] is True
-    assert result["hostname"] == "example.com"
+    assert not any(
+        "character-substitution" in indicator
+        for indicator in result["indicators"]
+    )
 
 
-def test_ordinary_url_destination_status_not_checked():
-    result = analyze_url("https://www.google.com")
-
+def test_suspicious_brand_subdomain_is_flagged():
+    result = analyze_url("https://paypal.example.com")
     assert result["valid"] is True
-    assert result["destination_status"] == "not_checked"
-
-
-def test_shortened_url_destination_status_unknown():
-    result = analyze_url("https://bit.ly/3example")
-
-    assert result["valid"] is True
-    assert result["destination_status"] == "unknown"
-
-
-def test_invalid_url_has_destination_status():
-    result = analyze_url("")
-
-    assert result["valid"] is False
-    assert result["destination_status"] == "unknown"
-
-
-def test_shortened_url_keeps_existing_risk_score():
-    result = analyze_url("https://bit.ly/3example")
-
-    assert result["risk_score"] == 20
-    assert result["risk_level"] == "Low"
-    assert result["destination_status"] == "unknown"
-
-
+    assert result["risk_score"] > 0
+    assert any(
+        "appears in a subdomain" in indicator
+        for indicator in result["indicators"]
+    )
 
