@@ -40,7 +40,7 @@ SHORTENER_DOMAINS = {
 MAX_URL_LENGTH = 2048
 MAX_HOSTNAME_LENGTH = 253
 
-# Heuristic thresholds, not probabilities of maliciousness.
+# These thresholds are heuristic categories, not probabilities.
 RISK_THRESHOLDS = {
     "medium": 25,
     "high": 50,
@@ -59,6 +59,7 @@ def _invalid_result(message: str) -> dict:
         "recommendation": "Check the URL and try again.",
         "analysis_method": "local_heuristics",
         "verification_status": "not_checked",
+        "destination_status": "unknown",
     }
 
 
@@ -167,6 +168,12 @@ def analyze_url(url: str) -> dict:
     is_ip = _is_ip_address(hostname)
     is_shortener = hostname in SHORTENER_DOMAINS
 
+    # Destination status describes what this analyzer knows.
+    # It does not mean the destination was tested.
+    destination_status = (
+        "unknown" if is_shortener else "not_checked"
+    )
+
     # 6. IP address used as the hostname.
     if is_ip:
         indicators.append(
@@ -262,7 +269,7 @@ def analyze_url(url: str) -> dict:
             "This does not guarantee that the URL is safe."
         )
 
-    # 16. Explicitly explain the uncertainty of shortened URLs.
+    # 16. Explain shortened URL uncertainty.
     if is_shortener:
         recommendation += (
             " The final destination is unknown because this analyzer "
@@ -286,5 +293,6 @@ def analyze_url(url: str) -> dict:
         "recommendation": recommendation,
         "analysis_method": "local_heuristics",
         "verification_status": "not_checked",
+        "destination_status": destination_status,
     }
 
