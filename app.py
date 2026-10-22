@@ -151,7 +151,7 @@ st.sidebar.caption(
 # ============================================================
 
 def show_url_result(result: dict) -> None:
-    """Display URL analysis results and verification details."""
+    """Display URL analysis results, verification, and destination status."""
 
     if not result["valid"]:
         st.error("The URL could not be analyzed.")
@@ -193,10 +193,10 @@ def show_url_result(result: dict) -> None:
             "but the URL has not been verified as safe."
         )
 
-    # Analysis and verification status
+    # Analysis, verification, and destination status
     st.markdown("#### Analysis Details")
 
-    detail_col1, detail_col2 = st.columns(2)
+    detail_col1, detail_col2, detail_col3 = st.columns(3)
 
     detail_col1.markdown("**Analysis Method**")
     detail_col1.info(
@@ -208,9 +208,17 @@ def show_url_result(result: dict) -> None:
         result.get("verification_status", "not_checked")
     )
 
+    destination_status = result.get("destination_status", "not_checked")
+    detail_col3.markdown("**Destination Status**")
+
+    if destination_status == "unknown":
+        detail_col3.warning("Unknown — shortened URL")
+    else:
+        detail_col3.info("Not checked")
+
     st.caption(
-        "No external threat-intelligence provider or live website "
-        "verification is used by this URL analyzer."
+        "This analyzer uses local rules only. It does not visit websites, "
+        "follow redirects, resolve DNS, or query an external threat feed."
     )
 
     # Indicators
@@ -227,7 +235,7 @@ def show_url_result(result: dict) -> None:
         )
 
     # Clear warning for shortened URLs
-    shortened_url_warning = any(
+    shortened_url_warning = destination_status == "unknown" or any(
         "shortened URL" in indicator.lower()
         or "shortener" in indicator.lower()
         for indicator in indicators
@@ -242,7 +250,6 @@ def show_url_result(result: dict) -> None:
     # Recommendation
     st.markdown("#### Recommendation")
     st.write(result["recommendation"])
-
 
 def show_defense_results(report: dict) -> None:
     """Display the actual defense validation results."""
