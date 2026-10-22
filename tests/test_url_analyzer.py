@@ -111,3 +111,34 @@ def test_hostname_is_normalized_to_lowercase():
     assert result["valid"] is True
     assert result["hostname"] == "example.com"
 
+
+def test_ordinary_url_destination_status_not_checked():
+    result = analyze_url("https://www.google.com")
+
+    assert result["valid"] is True
+    assert result["destination_status"] == "not_checked"
+
+
+def test_shortened_url_destination_status_unknown():
+    result = analyze_url("https://bit.ly/3example")
+
+    assert result["valid"] is True
+    assert result["destination_status"] == "unknown"
+
+
+def test_invalid_url_has_destination_status():
+    result = analyze_url("")
+
+    assert result["valid"] is False
+    assert result["destination_status"] == "unknown"
+
+
+def test_shortened_url_keeps_existing_risk_score():
+    result = analyze_url("https://bit.ly/3example")
+
+    assert result["risk_score"] == 20
+    assert result["risk_level"] == "Low"
+    assert result["destination_status"] == "unknown"
+
+
+
