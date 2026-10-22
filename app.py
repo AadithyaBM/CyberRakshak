@@ -151,36 +151,95 @@ st.sidebar.caption(
 # ============================================================
 
 def show_url_result(result: dict) -> None:
-    """Display URL analysis results."""
+    """Display URL analysis results and verification details."""
 
     if not result["valid"]:
         st.error("The URL could not be analyzed.")
+
         for indicator in result["indicators"]:
-            st.write(f"- {indicator}")
+            st.write(f"• {indicator}")
+
         return
 
     score = result["risk_score"]
 
+    # Main results
     col1, col2, col3 = st.columns(3)
 
     col1.metric("Risk Score", f"{score}/100")
     col2.metric("Risk Level", result["risk_level"])
     col3.metric("Hostname", result["hostname"])
 
+    st.caption(
+        "The risk score is based on local heuristic rules. "
+        "It is not a probability of fraud and does not prove "
+        "that a website is malicious or safe."
+    )
+
+    # Risk-level message
     if result["risk_level"] == "High":
-        st.error("High heuristic risk: investigate before interacting.")
+        st.error(
+            "High heuristic risk: avoid interacting with the URL "
+            "until it has been investigated further."
+        )
     elif result["risk_level"] == "Medium":
-        st.warning("Medium heuristic risk: inspect the URL carefully.")
+        st.warning(
+            "Medium heuristic risk: inspect the URL carefully "
+            "before interacting with it."
+        )
     else:
         st.info(
-            "Low heuristic risk does not guarantee that this URL is safe."
+            "Low heuristic risk: suspicious indicators were limited, "
+            "but the URL has not been verified as safe."
         )
 
-    st.markdown("#### Indicators")
+    # Analysis and verification status
+    st.markdown("#### Analysis Details")
 
-    for indicator in result["indicators"]:
-        st.write(f"• {indicator}")
+    detail_col1, detail_col2 = st.columns(2)
 
+    detail_col1.markdown("**Analysis Method**")
+    detail_col1.info(
+        result.get("analysis_method", "local_heuristics")
+    )
+
+    detail_col2.markdown("**Verification Status**")
+    detail_col2.warning(
+        result.get("verification_status", "not_checked")
+    )
+
+    st.caption(
+        "No external threat-intelligence provider or live website "
+        "verification is used by this URL analyzer."
+    )
+
+    # Indicators
+    st.markdown("#### Suspicious Indicators")
+
+    indicators = result.get("indicators", [])
+
+    if indicators:
+        for indicator in indicators:
+            st.write(f"• {indicator}")
+    else:
+        st.success(
+            "No suspicious indicators were detected by the current rules."
+        )
+
+    # Clear warning for shortened URLs
+    shortened_url_warning = any(
+        "shortened URL" in indicator.lower()
+        or "shortener" in indicator.lower()
+        for indicator in indicators
+    )
+
+    if shortened_url_warning:
+        st.warning(
+            "**Shortened URL warning:** The final destination has not "
+            "been checked. Do not assume that the destination is safe."
+        )
+
+    # Recommendation
     st.markdown("#### Recommendation")
     st.write(result["recommendation"])
 
