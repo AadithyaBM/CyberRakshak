@@ -7,8 +7,8 @@ Purpose:
 
 Important:
     This is a heuristic screening tool, not a definitive malware detector.
-    A low risk score does not guarantee that a URL is safe.
-    No network requests or external threat intelligence checks are performed.
+    Risk scores are not probabilities.
+    No network requests or external threat-intelligence checks are performed.
 """
 
 import ipaddress
@@ -40,6 +40,12 @@ SHORTENER_DOMAINS = {
 MAX_URL_LENGTH = 2048
 MAX_HOSTNAME_LENGTH = 253
 
+# Heuristic thresholds, not probabilities of maliciousness.
+RISK_THRESHOLDS = {
+    "medium": 25,
+    "high": 50,
+}
+
 
 def _invalid_result(message: str) -> dict:
     """Return a consistent result for invalid input."""
@@ -51,28 +57,32 @@ def _invalid_result(message: str) -> dict:
         "risk_level": "Invalid",
         "indicators": [message],
         "recommendation": "Check the URL and try again.",
+        "analysis_method": "local_heuristics",
+        "verification_status": "not_checked",
     }
+
+
+def _is_ip_address(hostname: str) -> bool:
+    """Return True if the hostname is a valid IPv4 or IPv6 address."""
+    try:
+        ipaddress.ip_address(hostname)
+        return True
+    except ValueError:
+        return False
 
 
 def _is_valid_hostname(hostname: str) -> bool:
     """
     Check basic hostname syntax without performing a DNS lookup.
 
-    Accepts valid IP addresses and ordinary ASCII domain names.
-    This is syntax validation, not proof that a domain exists or is safe.
+    This does not establish whether a hostname exists or is trustworthy.
     """
     if not hostname or len(hostname) > MAX_HOSTNAME_LENGTH:
         return False
 
-    # Accept valid IPv4 and IPv6 addresses.
-    try:
-        ipaddress.ip_address(hostname)
+    if _is_ip_address(hostname):
         return True
-    except ValueError:
-        pass
 
-    # Remove no additional characters here: hostname normalization
-    # is handled before this function is called.
     labels = hostname.split(".")
 
     for label in labels:
@@ -85,7 +95,7 @@ def _is_valid_hostname(hostname: str) -> bool:
         if not re.fullmatch(r"[a-z0-9-]+", label):
             return False
 
-    # Avoid treating a single numeric-looking hostname as a domain.
+    # Reject numeric-only hostname forms that are not valid IP addresses.
     if re.fullmatch(r"[0-9.]+", hostname):
         return False
 
@@ -94,15 +104,13 @@ def _is_valid_hostname(hostname: str) -> bool:
 
 def analyze_url(url: str) -> dict:
     """
-    Analyze a URL and return indicators and a heuristic risk score.
+    Analyze URL structure and return heuristic indicators.
 
-    The score is a manually designed screening score, not a probability
-    that the URL is malicious.
-
-    The function does not visit the URL, resolve DNS, or contact a server.
+    Does not visit the URL, resolve DNS, follow redirects, or contact
+    an external threat-intelligence provider.
     """
 
-    # 1. Validate input type and empty values.
+    # 1. Validate input.
     if not isinstance(url, str) or not url.strip():
         return _invalid_result("Please enter a URL.")
 
@@ -117,17 +125,17 @@ def analyze_url(url: str) -> dict:
     # 3. Limit URL length.
     if len(url) > MAX_URL_LENGTH:
         return _invalid_result(
-            f"The URL exceeds the maximum length of {MAX_URL_LENGTH} characters."
+            f"The URL exceeds the maximum length of "
+            f"{MAX_URL_LENGTH} characters."
         )
 
-    # 4. Add HTTPS when the user supplies a domain without a scheme.
+    # 4. Add HTTPS if no scheme is provided.
     if "://" not in url:
         url = "https://" + url
 
-    # 5. Parse and validate the URL.
+    # 5. Parse and validate URL structure.
     try:
         parsed = urlparse(url)
-
         scheme = parsed.scheme.lower()
 
         if scheme not in {"http", "https"}:
@@ -141,11 +149,8 @@ def analyze_url(url: str) -> dict:
             )
 
         hostname = parsed.hostname.lower().rstrip(".")
-
-        # Accessing .port detects malformed port values.
         port = parsed.port
 
-        # Require a syntactically valid hostname.
         if not _is_valid_hostname(hostname):
             return _invalid_result(
                 "The hostname format is invalid."
@@ -159,48 +164,46 @@ def analyze_url(url: str) -> dict:
     indicators = []
     score = 0
 
-    # 6. Detect IP addresses used as hostnames.
-    try:
-        ipaddress.ip_address(hostname)
-        is_ip_address = True
-    except ValueError:
-        is_ip_address = False
+    is_ip = _is_ip_address(hostname)
+    is_shortener = hostname in SHORTENER_DOMAINS
 
-    if is_ip_address:
+    # 6. IP address used as the hostname.
+    if is_ip:
         indicators.append(
             "The hostname is an IP address rather than a domain name."
         )
         score += 25
 
-    # 7. Detect unusually long URLs.
+    # 7. Unusually long URL.
     if len(url) > 100:
         indicators.append("The URL is unusually long.")
         score += 10
 
-    # 8. Detect the @ symbol in the authority section.
+    # 8. @ symbol in the authority section.
     if "@" in parsed.netloc:
         indicators.append(
             "The URL contains '@', which can obscure the destination."
         )
         score += 25
 
-    # 9. Detect many subdomain levels.
-    if not is_ip_address and len(hostname.split(".")) >= 5:
+    # 9. Many hostname subdomains.
+    if not is_ip and len(hostname.split(".")) >= 5:
         indicators.append(
             "The hostname contains many subdomain levels."
         )
         score += 15
 
-    # 10. Detect known URL-shortening services.
-    if hostname in SHORTENER_DOMAINS:
+    # 10. Known URL-shortening service.
+    if is_shortener:
         indicators.append(
-            "The URL uses a known URL-shortening service. "
-            "Its final destination has not been checked."
+            "The URL uses a known URL-shortening service."
+        )
+        indicators.append(
+            "The final destination of this shortened URL has not been checked."
         )
         score += 20
 
-    # 11. Detect potentially sensitive terms.
-    # Search the hostname and path, not query values or fragments.
+    # 11. Potentially sensitive terms in hostname and path.
     url_text = f"{hostname}{parsed.path}".lower()
 
     matched_keywords = sorted(
@@ -217,26 +220,26 @@ def analyze_url(url: str) -> dict:
         )
         score += min(20, len(matched_keywords) * 5)
 
-    # 12. Detect HTTP connections.
+    # 12. HTTP connection.
     if scheme == "http":
         indicators.append(
             "The URL uses HTTP instead of HTTPS. "
-            "The connection is not protected by HTTPS encryption."
+            "The connection does not use HTTPS encryption."
         )
         score += 10
 
-    # 13. Detect non-standard ports.
+    # 13. Non-standard port.
     if port is not None and port not in {80, 443}:
         indicators.append(
             f"The URL uses a non-standard port ({port})."
         )
         score += 10
 
-    # 14. Cap the score at 100.
+    # 14. Cap the score.
     score = min(score, 100)
 
-    # 15. Assign a screening category and recommendation.
-    if score >= 50:
+    # 15. Assign the risk category.
+    if score >= RISK_THRESHOLDS["high"]:
         risk_level = "High"
         recommendation = (
             "Multiple warning signs were detected. Avoid entering "
@@ -244,7 +247,7 @@ def analyze_url(url: str) -> dict:
             "using an independently obtained official source."
         )
 
-    elif score >= 25:
+    elif score >= RISK_THRESHOLDS["medium"]:
         risk_level = "Medium"
         recommendation = (
             "Inspect the hostname and warning signs carefully. "
@@ -256,26 +259,23 @@ def analyze_url(url: str) -> dict:
         risk_level = "Low"
         recommendation = (
             "Few warning signs were detected by these rules. "
-            "This does not guarantee that the URL is safe. "
-            "The destination has not been checked against external "
-            "threat intelligence."
+            "This does not guarantee that the URL is safe."
         )
 
-    # A shortener can hide its destination even when the numeric
-    # score remains below the Medium threshold.
-    if hostname in SHORTENER_DOMAINS:
+    # 16. Explicitly explain the uncertainty of shortened URLs.
+    if is_shortener:
         recommendation += (
-            " This URL uses a shortening service, and its final "
-            "destination is unknown to this analyzer."
+            " The final destination is unknown because this analyzer "
+            "does not follow shortened links."
         )
 
-    # 16. Explain when no indicators were found.
+    # 17. Explain when no indicators are detected.
     if not indicators:
         indicators.append(
             "No suspicious indicators were detected by the current rules."
         )
 
-    # 17. Return the established result structure.
+    # 18. Return the complete result.
     return {
         "valid": True,
         "normalized_url": url,
@@ -284,5 +284,7 @@ def analyze_url(url: str) -> dict:
         "risk_level": risk_level,
         "indicators": indicators,
         "recommendation": recommendation,
+        "analysis_method": "local_heuristics",
+        "verification_status": "not_checked",
     }
 
