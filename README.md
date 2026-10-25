@@ -1,250 +1,266 @@
-# CyberRakshak
+<div align="center">
 
-### Detect the Threat. Understand the Attack. Protect the User.
+# 🛡️ CyberRakshak
 
-**CyberRakshak** is a Python-based cybersecurity educational platform focused on URL risk analysis, phishing-pattern detection, authentication security demonstrations, and defense validation.
+### Cyber Threat Detection & Defense Validation
 
-The project demonstrates how local security rules can identify suspicious URL characteristics and how authentication controls can be tested in a controlled environment.
+**Investigate URLs. Inspect website security. Validate defensive checks.**
 
-> **Disclaimer:** CyberRakshak is an educational prototype. Its heuristic URL scores are not probabilities, and its validation results do not certify an application as secure.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Launch%20App-00C853?style=for-the-badge\&logo=streamlit\&logoColor=white)](https://cyberrakshak-v2vbwuyfrezxekzmuaky3l.streamlit.app/)
+[![Python](https://img.shields.io/badge/Python-3.x-3776AB?style=for-the-badge\&logo=python\&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-FF4B4B?style=for-the-badge\&logo=streamlit\&logoColor=white)](https://streamlit.io/)
 
----
+[**Live Application**](https://cyberrakshak-v2vbwuyfrezxekzmuaky3l.streamlit.app/) · [**GitHub Repository**](https://github.com/AadithyaBM/CyberRakshak)
 
-## 1. Project Objectives
-
-* Analyze URL structures for potentially suspicious characteristics.
-* Identify selected lookalike-domain and suspicious-subdomain patterns.
-* Demonstrate password hashing and verification.
-* Demonstrate OTP expiration, attempt limits, and one-time use.
-* Demonstrate login rate limiting.
-* Validate selected authentication security controls.
-* Provide an interactive dashboard for security demonstrations and reports.
-
-## 2. Features
-
-### URL Investigation
-
-* URL syntax validation and normalization.
-* Detection of IP-address hostnames.
-* Detection of potentially deceptive `@` usage.
-* Identification of unusually long URLs and excessive subdomain levels.
-* Screening for selected lookalike-domain patterns.
-* Detection of selected brand names in subdomains.
-* Identification of known URL-shortening services.
-* Detection of potentially sensitive URL keywords.
-* Warnings for HTTP connections and non-standard ports.
-* Heuristic risk scores and recommendations.
-
-### Authentication Security Lab
-
-* Password hashing using PBKDF2-HMAC-SHA256.
-* Random salt generation.
-* Password verification using constant-time comparison.
-* Simulated six-digit OTP generation.
-* OTP expiration, failed-attempt limits, and one-time use.
-* In-memory login rate limiting.
-
-### Defense Validation
-
-* Password hashing and verification checks.
-* OTP security checks.
-* Login rate-limiting checks.
-* Summary of validation results.
-
-### Simulation Lab
-
-Provides controlled, fictional phishing-awareness scenarios for educational demonstrations.
-
-### Reporting
-
-The project includes report-generation functionality for summarizing security analysis and validation results.
+</div>
 
 ---
 
-## 3. Technology Stack
+## 📌 About the Project
 
-* **Programming language:** Python
-* **Dashboard:** Streamlit
-* **Data handling:** Pandas
-* **Visualization:** Plotly
-* **HTTP library:** Requests
-* **Testing:** Pytest
-* **Version control:** Git
+**CyberRakshak** is a Python-based cybersecurity educational application built with Streamlit. It brings together URL investigation, website security inspection, threat-intelligence integration, security testing, and defensive validation in an interactive web interface.
+
+The project was developed to gain practical experience in Python programming, cybersecurity concepts, web application development, automated testing, and cloud deployment.
+
+> ⚠️ **Disclaimer:** CyberRakshak is an educational prototype. Heuristic risk scores are not proof that a website is safe or malicious.
+
+## ✨ Key Features
+
+| Feature                     | Description                                                                             |
+| --------------------------- | --------------------------------------------------------------------------------------- |
+| 🔍 **URL Investigation**    | Analyzes URLs using heuristic rules to identify potentially suspicious characteristics. |
+| 🌐 **Website Inspection**   | Provides website analysis, including supported SSL/TLS, DNS, WHOIS, and HTML checks.    |
+| 🛡️ **Threat Intelligence** | Supports online threat-intelligence checks when correctly configured.                   |
+| 🔐 **Authentication Lab**   | Demonstrates authentication security concepts and implemented checks.                   |
+| 🎭 **Phishing Simulation**  | Provides educational phishing-related scenarios.                                        |
+| 🧪 **Defense Validation**   | Runs available defensive security validation checks.                                    |
+| 📄 **Security Reports**     | Generates downloadable reports containing supported analysis results.                   |
+| 📊 **Dashboard & History**  | Displays available dashboard information and recorded scan history.                     |
+
+## 📸 Application Screenshots
+
+### 1. 🏠 Dashboard
+
+The main interface for accessing CyberRakshak's available security tools.
+
+![CyberRakshak Dashboard](screenshots/Dashboard.png)
+
+### 2. 🔍 URL Investigation
+
+Demonstrates the URL analysis interface and its assessment results.
+
+![CyberRakshak URL Investigation](screenshots/URL%20Investigation.png)
+
+### 3. 🔐 SSL Certificate Inspection
+
+Shows certificate verification information, hostname details, and TLS information.
+
+![CyberRakshak SSL Certificate Inspection](screenshots/SSL%20Certificate.png)
+
+### 4. 📄 Security Report
+
+Demonstrates the application's report-generation feature.
+
+![CyberRakshak Security Report](screenshots/Security%20Report.png)
 
 ---
 
-## 4. Project Structure
+## 🧰 Technology Stack
+
+| Technology       | Purpose                           |
+| ---------------- | --------------------------------- |
+| **Python**       | Core application logic            |
+| **Streamlit**    | Interactive web interface         |
+| **Pandas**       | Tabular data processing           |
+| **Requests**     | HTTP requests and API integration |
+| **Plotly**       | Interactive visualizations        |
+| **ReportLab**    | PDF report generation             |
+| **dnspython**    | DNS inspection                    |
+| **python-whois** | WHOIS information lookup          |
+| **Pytest**       | Automated testing                 |
+
+## 🏗️ Project Structure
 
 ```text
 CyberRakshak/
 ├── app.py
-├── requirements.txt
-├── README.md
-├── .gitignore
 ├── engine/
-│   ├── __init__.py
 │   ├── url_analyzer.py
+│   ├── site_inspector.py
 │   └── threat_intelligence.py
+├── reports/
+│   └── report_generator.py
 ├── security/
-│   ├── __init__.py
 │   ├── auth_security.py
 │   └── defense_validator.py
 ├── simulation/
-│   ├── __init__.py
 │   └── phishing_simulator.py
-├── reports/
-│   └── report_generator.py
-└── tests/
-    ├── test_url_analyzer.py
-    ├── test_threat_intelligence.py
-    ├── test_auth_security.py
-    ├── test_phishing_simulator.py
-    ├── test_defense_validator.py
-    ├── test_report_generator.py
-    ├── test_end_to_end.py
-    └── evaluate_url_detection.py
+├── tests/
+├── screenshots/
+│   ├── Dashboard.png
+│   ├── URL Investigation.png
+│   ├── SSL Certificate.png
+│   └── Security Report.png
+├── requirements.txt
+├── .gitignore
+└── README.md
 ```
+
+*This is a representative structure. Refer to the repository for the complete and current file list.*
 
 ---
 
-## 5. Installation
+## ⚙️ Installation and Local Setup
 
 ### Prerequisites
 
-* Python installed on your computer.
-* Git.
-* Visual Studio Code or another Python-compatible editor.
+* Python installed
+* Git installed
+* Terminal or command prompt
 
-### Step 1: Open the project directory
+### Step 1: Clone the repository
 
-```powershell
-cd C:\Users\aadit\CyberRakshak
+```bash
+git clone https://github.com/AadithyaBM/CyberRakshak.git
 ```
 
-### Step 2: Activate the virtual environment
+### Step 2: Navigate to the project directory
 
-On Windows PowerShell:
+```bash
+cd CyberRakshak
+```
+
+### Step 3: Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+### Step 4: Activate the environment
+
+**Windows PowerShell**
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-### Step 3: Install dependencies
+### Step 5: Install dependencies
 
-```powershell
+```bash
 python -m pip install -r requirements.txt
 ```
 
----
+### Step 6: Launch CyberRakshak
 
-## 6. Run the Application
-
-Start the Streamlit dashboard:
-
-```powershell
+```bash
 python -m streamlit run app.py
 ```
 
-Streamlit will display a local address in the terminal. Open that address in your browser.
+Open the local address printed in your terminal to use the application.
 
 ---
 
-## 7. Run the Automated Tests
+## 🔑 Optional API Configuration
 
-Run the complete test suite:
+If you use the Google Safe Browsing integration, configure the API key securely.
+
+**Windows PowerShell**
 
 ```powershell
-python -m pytest -v
+$env:GOOGLE_SAFE_BROWSING_API_KEY = "YOUR_API_KEY"
 ```
 
-Run URL analyzer tests:
+Launch the application from the same terminal session.
 
-```powershell
-python -m pytest tests/test_url_analyzer.py -v
-```
+For Streamlit Community Cloud, configure the key using the application's Secrets settings instead of hardcoding it into source files.
 
-Run authentication tests:
-
-```powershell
-python -m pytest tests/test_auth_security.py -v
-```
-
-Run defense validation tests:
-
-```powershell
-python -m pytest tests/test_defense_validator.py -v
-```
-
-Run the URL evaluation script:
-
-```powershell
-python tests/evaluate_url_detection.py
-```
-
-The evaluation script writes detailed results to `url_evaluation_results.csv`.
+**Never commit API keys, passwords, or other secrets to GitHub.**
 
 ---
 
-## 8. Current Testing Results
+## 🧪 Testing
 
-During development, the following results were reported:
+CyberRakshak includes automated tests for supported components.
 
-| Test group                     | Reported result |
-| ------------------------------ | --------------: |
-| URL analyzer tests             |       27 passed |
-| Authentication security tests  |       28 passed |
-| Defense validator tests        |        9 passed |
-| Complete project test suite    |       78 passed |
-| URL evaluation validity checks |    21/21 passed |
-| Defense validation groups      |      3/3 passed |
+To run the test suite locally, ensure that `pytest` is installed. If it is not included in the runtime dependencies, install it separately:
 
-These results reflect the development runs reported for this project. Rerun the commands above to verify the current state of the code.
+```bash
+python -m pip install pytest
+```
 
-The URL evaluation is a rule-coverage and behavior check, not a real-world phishing accuracy benchmark.
+Run the tests:
 
----
+```bash
+python -m pytest
+```
 
-## 9. Important Security Limitations
+Review the output for passed and failed tests. Automated tests cover specific scenarios and do not guarantee that every possible security condition is detected.
 
-* URL analysis uses local heuristics.
-* URL analysis does not visit the submitted URL or follow redirects.
-* DNS, WHOIS, SSL certificate, and HTML inspection should not be described as implemented unless those capabilities are separately added and verified.
-* The threat-intelligence module should not be described as providing live external verification unless a provider is configured.
-* A low URL risk score does not guarantee that a URL is safe.
-* A warning indicator does not prove that a URL is malicious.
-* Selected lookalike-domain rules cover only a limited set of brands and character substitutions.
-* OTP codes are returned to the caller in this educational implementation.
-* Login rate-limiting state is stored in memory and is not a distributed production control.
-* The authentication and defense validation modules are demonstrations, not a complete production authentication service.
+## 🚀 Live Deployment
 
-Do not use the project as the sole basis for real-world security decisions.
+CyberRakshak is deployed using **Streamlit Community Cloud**.
 
----
+<div align="center">
 
-## 10. Ethical Use
+### 🌐 Try CyberRakshak
 
-CyberRakshak is intended for cybersecurity education, controlled testing, and defensive security awareness.
+[![Open CyberRakshak](https://img.shields.io/badge/Open-CyberRakshak-FF4B4B?style=for-the-badge\&logo=streamlit\&logoColor=white)](https://cyberrakshak-v2vbwuyfrezxekzmuaky3l.streamlit.app/)
 
-Use it only on systems and data you are authorized to test. The simulation features are intended for safe demonstrations and should not be used to collect real credentials.
+[Launch the Live Application](https://cyberrakshak-v2vbwuyfrezxekzmuaky3l.streamlit.app/)
+
+</div>
+
+Source code and deployment configuration are maintained in the GitHub repository.
 
 ---
 
-## 11. Future Improvements
+## ⚠️ Limitations
 
-Possible future work includes:
+* Heuristic URL analysis can produce false positives and false negatives.
+* A low risk score does not prove that a URL is safe.
+* A high risk score does not independently prove that a URL is malicious.
+* Threat-intelligence results depend on API configuration, provider availability, and returned data.
+* Website inspections can be affected by DNS failures, network restrictions, timeouts, and remote server behavior.
+* Local SQLite scan history may not persist reliably across hosting restarts or redeployments.
+* The application is an educational prototype, not a replacement for professional security products or comprehensive security audits.
 
-* Expanding URL detection tests with carefully labeled datasets.
-* Evaluating detection coverage and false-positive behavior.
-* Adding an explicitly configured threat-intelligence provider.
-* Implementing real DNS and certificate inspection with appropriate safeguards.
-* Improving report exports and evaluation summaries.
-* Adding more authentication edge-case tests.
-* Preparing reproducible project demonstrations and documentation.
+## 🔮 Future Improvements
+
+Potential future enhancements include:
+
+* 📈 Evaluate detection performance using labeled datasets.
+* 🤖 Explore machine-learning-based URL classification.
+* 📊 Measure precision, recall, F1-score, and false-positive rates.
+* 🛡️ Expand threat-intelligence integrations.
+* 🧪 Improve automated testing and edge-case coverage.
+* 💾 Add reliable persistent storage for scan history.
+* 🎨 Improve dashboard visualizations and report design.
+* ♿ Improve accessibility and mobile responsiveness.
+* ⚙️ Improve error handling and user feedback.
+
+## 🔒 Responsible Use
+
+CyberRakshak is intended for education and authorized security analysis.
+
+* Inspect systems only when you have permission.
+* Do not use the application for unauthorized security testing.
+* Do not treat heuristic assessments as definitive security verdicts.
+* Verify important security findings using appropriate trusted sources.
+
+## 👨‍💻 Author
+
+**Aadithya BM**
+
+* **GitHub:** [AadithyaBM](https://github.com/AadithyaBM)
+* **Project Repository:** [CyberRakshak](https://github.com/AadithyaBM/CyberRakshak)
+* **Live Demo:** [CyberRakshak on Streamlit](https://cyberrakshak-v2vbwuyfrezxekzmuaky3l.streamlit.app/)
 
 ---
 
-## 12. Project Summary
+<div align="center">
 
-CyberRakshak combines URL heuristic analysis, phishing-awareness simulations, authentication security demonstrations, and defense validation in a Python-based dashboard.
+**⭐ If you find CyberRakshak useful, consider starring the repository!**
 
-Its purpose is to demonstrate security concepts, identify selected warning signs, and make defensive testing easier to understand.
+*Built to explore Python development, cybersecurity analysis, software testing, and web application deployment.*
+
+</div>
