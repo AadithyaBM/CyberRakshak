@@ -1,8 +1,9 @@
+```text
 streamlit
 pandas
 requests
 plotly
-pytest
 reportlab
 dnspython
 python-whois
+```
