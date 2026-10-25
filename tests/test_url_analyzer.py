@@ -202,3 +202,42 @@ def test_high_risk_classification_uses_configured_threshold():
     # This input currently scores 40, so it should not be classified High.
     assert result["risk_score"] == 40
     assert result["risk_level"] == "Medium"
+
+def test_https_does_not_remove_suspicious_url_indicators():
+    result = analyze_url("https://paypa1.com/login")
+
+    assert result["valid"] is True
+    assert result["risk_score"] > 0
+    assert len(result["indicators"]) > 0
+
+
+def test_url_with_unusual_port_is_analyzed():
+    result = analyze_url("https://example.com:8443/login")
+
+    assert result["valid"] is True
+    assert result["hostname"] == "example.com"
+    assert result["risk_score"] >= 0
+
+
+def test_url_with_query_parameters_is_analyzed():
+    result = analyze_url(
+        "https://example.com/login?next=%2Faccount&session=123"
+    )
+
+    assert result["valid"] is True
+    assert result["hostname"] == "example.com"
+    assert 0 <= result["risk_score"] <= 100
+
+
+def test_url_with_fragment_is_analyzed():
+    result = analyze_url("https://example.com/account#settings")
+
+    assert result["valid"] is True
+    assert result["hostname"] == "example.com"
+
+
+def test_analysis_does_not_claim_external_verification_by_default():
+    result = analyze_url("https://example.com")
+
+    assert result["valid"] is True
+    assert result["verification_status"] == "not_checked"

@@ -1,17 +1,18 @@
-
 """
 CyberRakshak: Phishing Intelligence Engine
 
-Local heuristic URL analysis.
-Does not visit URLs, resolve DNS, follow redirects, or contact
-external threat-intelligence services.
+Local heuristic URL analysis with optional Google Safe Browsing checks.
+The analyzer does not visit URLs, resolve DNS, or follow redirects.
+Online threat-intelligence checks are opt-in via check_online=True.
 
 Risk scores are heuristic indicators, not probabilities.
 """
 
 import ipaddress
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
+
+from engine.threat_intelligence import check_threat_intelligence
 
 
 SUSPICIOUS_KEYWORDS = {
@@ -101,10 +102,8 @@ def _is_valid_hostname(hostname: str) -> bool:
     for label in labels:
         if not label or len(label) > 63:
             return False
-
         if label.startswith("-") or label.endswith("-"):
             return False
-
         if not re.fullmatch(r"[a-z0-9-]+", label):
             return False
 
@@ -118,16 +117,13 @@ def _detect_lookalike_domain(hostname: str) -> bool:
     """
     Detect selected character substitutions in hostname labels.
 
-    Examples:
-        paypa1.com
-        g00gle.com
-        amaz0n.com
+    Examples: paypa1.com, g00gle.com, amaz0n.com.
+    This is a simple heuristic and can produce false positives/negatives.
     """
     labels = hostname.lower().split(".")
 
     for label in labels:
         normalized = label.translate(LOOKALIKE_SUBSTITUTIONS)
-
         if normalized in LOOKALIKE_TARGETS and normalized != label:
             return True
 
@@ -136,29 +132,26 @@ def _detect_lookalike_domain(hostname: str) -> bool:
 
 def _detect_suspicious_brand_subdomain(hostname: str) -> bool:
     """
-    Flag a selected brand in a subdomain when the remaining domain
-    portion does not itself represent that brand.
-
+    Flag a selected brand in a subdomain when the registrable-looking
+    domain portion does not itself represent that brand.
     Example: paypal.example.com
     """
     labels = hostname.lower().split(".")
-
     if len(labels) < 3:
         return False
 
     subdomains = labels[:-2]
-
-    return any(
-        label in LOOKALIKE_TARGETS
-        for label in subdomains
-    )
+    return any(label in LOOKALIKE_TARGETS for label in subdomains)
 
 
-def analyze_url(url: str) -> dict:
+def analyze_url(url: str, check_online: bool = False) -> dict:
     """
     Analyze URL structure and return heuristic indicators.
 
-    No network requests are made.
+    By default, only local heuristics run, keeping tests and offline use
+    deterministic. Set check_online=True to query configured Google Safe
+    Browsing threat intelligence. This checks the submitted URL but does not
+    visit the destination or follow redirects.
     """
 
     # 1. Validate input.
@@ -176,8 +169,7 @@ def analyze_url(url: str) -> dict:
     # 3. Limit URL length.
     if len(url) > MAX_URL_LENGTH:
         return _invalid_result(
-            f"The URL exceeds the maximum length of "
-            f"{MAX_URL_LENGTH} characters."
+            f"The URL exceeds the maximum length of {MAX_URL_LENGTH} characters."
         )
 
     # 4. Add HTTPS if no scheme is provided.
@@ -190,14 +182,10 @@ def analyze_url(url: str) -> dict:
         scheme = parsed.scheme.lower()
 
         if scheme not in {"http", "https"}:
-            return _invalid_result(
-                "Only HTTP and HTTPS URLs can be analyzed."
-            )
+            return _invalid_result("Only HTTP and HTTPS URLs can be analyzed.")
 
         if not parsed.hostname:
-            return _invalid_result(
-                "The URL does not contain a hostname."
-            )
+            return _invalid_result("The URL does not contain a hostname.")
 
         hostname = parsed.hostname.lower().rstrip(".")
         port = parsed.port
@@ -213,6 +201,10 @@ def analyze_url(url: str) -> dict:
 
     is_ip = _is_ip_address(hostname)
     is_shortener = hostname in SHORTENER_DOMAINS
+    has_lookalike = not is_ip and _detect_lookalike_domain(hostname)
+    has_brand_subdomain = (
+        not is_ip and _detect_suspicious_brand_subdomain(hostname)
+    )
 
     destination_status = "unknown" if is_shortener else "not_checked"
 
@@ -223,10 +215,10 @@ def analyze_url(url: str) -> dict:
         )
         score += 25
 
-    # 7. Unusually long URL.
-    if len(url) > 100:
+    # 7. URL length: a minor signal by itself, not proof of phishing.
+    if len(url) > 200:
         indicators.append("The URL is unusually long.")
-        score += 10
+        score += 5
 
     # 8. @ symbol in authority section.
     if "@" in parsed.netloc:
@@ -237,44 +229,42 @@ def analyze_url(url: str) -> dict:
 
     # 9. Many hostname subdomains.
     if not is_ip and len(hostname.split(".")) >= 5:
-        indicators.append(
-            "The hostname contains many subdomain levels."
-        )
+        indicators.append("The hostname contains many subdomain levels.")
         score += 15
 
-    # 10. Lookalike-domain detection.
-    if not is_ip and _detect_lookalike_domain(hostname):
+    # 10. Lookalike-domain detection gets a strong weight.
+    if has_lookalike:
         indicators.append(
-            "The hostname contains a character-substitution pattern "
-            "that resembles a selected well-known brand."
+            "Possible brand impersonation: character-substitution resembling "
+            "a selected well-known brand was detected."
         )
         score += 20
 
     # 11. Suspicious brand subdomain detection.
-    if not is_ip and _detect_suspicious_brand_subdomain(hostname):
+    if has_brand_subdomain:
         indicators.append(
             "A selected well-known brand appears in a subdomain. "
-            "Check the actual domain before trusting the URL."
+            "Check the actual registered domain independently."
         )
         score += 15
 
     # 12. Known URL shortener.
     if is_shortener:
-        indicators.append(
-            "The URL uses a known URL-shortening service."
-        )
+        indicators.append("The URL uses a known URL-shortening service.")
         indicators.append(
             "The final destination of this shortened URL has not been checked."
         )
-        score += 20
+        score += 15
 
-    # 13. Potentially sensitive terms.
-    url_text = f"{hostname}{parsed.path}".lower()
+    # 13. Look for sensitive terms in the hostname, path, and query.
+    # Decode percent-encoded text for analysis, but keep the submitted URL
+    # unchanged in the returned normalized_url.
+    url_text = unquote(
+        f"{hostname}{parsed.path}?{parsed.query}"
+    ).lower()
 
     matched_keywords = sorted(
-        keyword
-        for keyword in SUSPICIOUS_KEYWORDS
-        if keyword in url_text
+        keyword for keyword in SUSPICIOUS_KEYWORDS if keyword in url_text
     )
 
     if matched_keywords:
@@ -283,7 +273,8 @@ def analyze_url(url: str) -> dict:
             + ", ".join(matched_keywords)
             + "."
         )
-        score += min(20, len(matched_keywords) * 5)
+        # Keyword matches are weak signals and have a strict cap.
+        score += min(15, len(matched_keywords) * 5)
 
     # 14. HTTP connection.
     if scheme == "http":
@@ -295,47 +286,92 @@ def analyze_url(url: str) -> dict:
 
     # 15. Non-standard port.
     if port is not None and port not in {80, 443}:
-        indicators.append(
-            f"The URL uses a non-standard port ({port})."
-        )
+        indicators.append(f"The URL uses a non-standard port ({port}).")
         score += 10
 
-    # 16. Cap score.
+    # 16. Contextual combination: a lookalike plus sensitive terms is
+    # more concerning than either weak signal alone.
+    if (has_lookalike or has_brand_subdomain) and matched_keywords:
+        indicators.append(
+            "Brand-impersonation pattern combined with sensitive URL terms; "
+            "treat this URL as high risk until independently verified."
+        )
+        score += 15
+
+    # 17. Optional online threat-intelligence check.
+    threat_intelligence = {
+        "status": "not_requested",
+        "matched": None,
+        "source": None,
+        "message": "Online threat intelligence was not requested.",
+    }
+    verification_status = "not_checked"
+    analysis_method = "local_heuristics"
+
+    if check_online:
+        threat_intelligence = check_threat_intelligence(url)
+        analysis_method = "local_heuristics+threat_intelligence"
+
+        if threat_intelligence["status"] == "match":
+            indicators.append(
+                "Google Safe Browsing reported this URL as a known threat."
+            )
+            # A provider match is a strong signal; keep the result in High risk.
+            score = max(score, 75)
+            verification_status = "threat_match"
+        elif threat_intelligence["status"] == "no_match":
+            verification_status = "checked_no_match"
+        elif threat_intelligence["status"] == "not_configured":
+            verification_status = "not_configured"
+        elif threat_intelligence["status"] == "unavailable":
+            verification_status = "unavailable"
+        else:
+            verification_status = threat_intelligence["status"]
+
+    # 18. Cap score.
     score = min(score, 100)
 
-    # 17. Assign risk category.
+    # 19. Assign risk category and recommendation.
     if score >= RISK_THRESHOLDS["high"]:
         risk_level = "High"
         recommendation = (
-            "Multiple warning signs were detected. Avoid entering "
+            "Multiple or strong warning signs were detected. Avoid entering "
             "credentials or sensitive information. Verify the destination "
             "using an independently obtained official source."
         )
     elif score >= RISK_THRESHOLDS["medium"]:
         risk_level = "Medium"
         recommendation = (
-            "Inspect the hostname and warning signs carefully. "
-            "Verify the destination independently before sharing "
-            "sensitive information."
+            "Review the hostname and warning signs carefully. Verify the "
+            "destination independently before sharing sensitive information."
         )
     else:
         risk_level = "Low"
         recommendation = (
-            "Few warning signs were detected by these rules. "
-            "This does not guarantee that the URL is safe."
+            "Few warning signs were detected by these rules. This does not "
+            "guarantee that the URL is safe."
         )
 
-    # 18. Explain shortened URL uncertainty.
     if is_shortener:
         recommendation += (
             " The final destination is unknown because this analyzer "
             "does not follow shortened links."
         )
 
-    # 19. Report when no indicators are detected.
     if not indicators:
         indicators.append(
             "No suspicious indicators were detected by the current rules."
+        )
+
+    if threat_intelligence["status"] == "match":
+        recommendation = (
+            "Google Safe Browsing reported this URL as a known threat. "
+            "Avoid visiting it or entering credentials or sensitive information."
+        )
+    elif threat_intelligence["status"] == "no_match":
+        recommendation += (
+            " Google Safe Browsing returned no known threat match, but this "
+            "does not guarantee that the URL is safe."
         )
 
     # 20. Return the complete result.
@@ -347,8 +383,8 @@ def analyze_url(url: str) -> dict:
         "risk_level": risk_level,
         "indicators": indicators,
         "recommendation": recommendation,
-        "analysis_method": "local_heuristics",
-        "verification_status": "not_checked",
+        "analysis_method": analysis_method,
+        "verification_status": verification_status,
         "destination_status": destination_status,
+        "threat_intelligence": threat_intelligence,
     }
-

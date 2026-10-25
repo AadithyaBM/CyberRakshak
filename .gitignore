@@ -1,9 +1,11 @@
+````gitignore
 # Python
 __pycache__/
 *.py[cod]
 
 # Virtual environment
 .venv/
+venv/
 
 # Test artifacts
 .pytest_cache/
@@ -13,13 +15,53 @@ htmlcov/
 # Environment variables and secrets
 .env
 .env.*
+!.env.example
+
+# Local databases and application state
+*.db
+*.sqlite
+*.sqlite3
 
 # Generated reports
 reports/*.json
 reports/*.pdf
+cyberrakshak_test_report.pdf
+
+# Local evaluation output
+url_evaluation_results.csv
+
+# Backup files
+* - backup.py
 
 # Editor and operating system files
 .vscode/
 .DS_Store
 Thumbs.db
 
+### 2. Save the file
+
+Press **Ctrl + S**.
+
+### Why these changes matter
+
+| Change | Reason |
+|---|---|
+| `*.db` | Prevents publishing local scan history |
+| `*.sqlite` and `*.sqlite3` | Excludes other local database files |
+| `url_evaluation_results.csv` | Keeps generated evaluation output out of the repository |
+| `* - backup.py` | Excludes backup files |
+| `!.env.example` | Allows a sample environment configuration without secrets |
+
+**Important:** `.gitignore` only prevents untracked files from being added automatically. It does not remove files already tracked by Git.
+
+## Step 16: Check the result
+
+Run:
+
+```powershell
+git status
+````
+
+Send me the output.
+
+Next, we'll check which files are ready for GitHub and ensure that no API keys or sensitive database contents are exposed.
