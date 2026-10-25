@@ -55,7 +55,7 @@ Demonstrates the URL analysis interface and its assessment results.
 
 Shows certificate verification information, hostname details, and TLS information.
 
-![CyberRakshak SSL Certificate Inspection](screenshots/SSL%20Certificate.png)
+![CyberRakshak SSL Certificate Inspection](screenshots/SSL%20Certificate%20Inspection.png)
 
 ### 4. 📄 Security Report
 
